@@ -37,6 +37,17 @@ export function decodeRoleFromToken(token: string | null): 'customer' | 'supplie
   }
 }
 
+export function decodeUserNameFromToken(token: string | null): string | null {
+  if (!token) return null;
+  try {
+    const [, payload] = token.split('.');
+    const json = JSON.parse(atob(payload));
+    return json.fullName || json.name || json.email || null;
+  } catch {
+    return null;
+  }
+}
+
 
 
 

@@ -1,13 +1,17 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider, Link, useNavigate, Navigate } from 'react-router-dom';
-import { getToken, decodeRoleFromToken, clearToken } from './lib/api';
+import { getToken, decodeRoleFromToken, clearToken, decodeUserNameFromToken } from './lib/api';
 import './style.css';
 
 import Login from './pages/Login';
 import RegisterCustomer from './pages/RegisterCustomer';
 import RegisterSupplier from './pages/RegisterSupplier';
+import SupplierDashboardPage from './pages/supplier/SupplierDashboard';
 import RegisterAgent from './pages/RegisterAgent';
+import AgentDashboardPage from './pages/agent/AgentDashboard';
+import CustomerDashboard from './pages/customer/CustomerDashboard';
+import AdminDashboardPage from './pages/admin/AdminDashboard';
 
 function Home() {
   return (
@@ -313,24 +317,30 @@ function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: 
 
 function DashboardLayout({ title, children }: { title: string; children: React.ReactNode }) {
   const navigate = useNavigate();
+  const token = getToken();
+  const userName = decodeUserNameFromToken(token);
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-3xl bg-white rounded-xl shadow p-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-semibold text-slate-900">{title}</h2>
-          <button onClick={() => { clearToken(); navigate('/'); }} className="inline-flex items-center rounded-md bg-rose-600 px-3 py-1.5 text-white hover:bg-rose-700">Logout</button>
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-white to-emerald-50">
+      <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-sm border-b border-slate-200">
+        <div className="mx-auto w-full max-w-6xl px-4 py-4 flex items-center justify-between">
+          <h1 className="text-xl md:text-2xl font-semibold text-slate-900">Hello{userName ? `, ${userName}` : ''} – {title}</h1>
+          <button onClick={() => { clearToken(); navigate('/'); }} className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-white shadow hover:shadow-md hover:bg-rose-700 active:scale-[.98] transition">
+            <span>↩</span>
+            <span>Logout</span>
+          </button>
         </div>
-        <div className="mt-4">{children}</div>
-      </div>
+      </header>
+      <main className="flex-1">
+        <div className="mx-auto w-full max-w-6xl px-4 py-6">
+          <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-white/30 p-4 md:p-6">
+            {children}
+          </div>
+        </div>
+      </main>
+      <footer className="border-t border-slate-200 bg-white/80">
+        <div className="mx-auto w-full max-w-6xl px-4 py-4 text-xs md:text-sm text-slate-600">© SmartLPG 2025</div>
+      </footer>
     </div>
-  );
-}
-
-function CustomerDashboard() {
-  return (
-    <DashboardLayout title="Customer Dashboard">
-      <p className="text-slate-700">Welcome, manage your orders and deliveries.</p>
-    </DashboardLayout>
   );
 }
 
@@ -367,11 +377,41 @@ const router = createBrowserRouter([
   { path: '/register/supplier', element: <RegisterSupplier /> },
   { path: '/register/agent', element: <RegisterAgent /> },
   { path: '/admin', element: <AdminLogin /> },
-  { path: '/customer', element: (<ProtectedRoute role="customer"><CustomerDashboard /></ProtectedRoute>) },
-  { path: '/supplier', element: (<ProtectedRoute role="supplier"><SupplierDashboard /></ProtectedRoute>) },
-  { path: '/agent', element: (<ProtectedRoute role="agent"><AgentDashboard /></ProtectedRoute>) },
-  { path: '/dashboard', element: (<ProtectedRoute><CustomerDashboard /></ProtectedRoute>) },
-  { path: '/admin/dashboard', element: (<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>) },
+  { path: '/customer', element: (
+    <ProtectedRoute role="customer">
+      <DashboardLayout title="Customer Dashboard">
+        <CustomerDashboard />
+      </DashboardLayout>
+    </ProtectedRoute>
+  ) },
+  { path: '/supplier', element: (
+    <ProtectedRoute role="supplier">
+      <DashboardLayout title="Supplier Dashboard">
+        <SupplierDashboardPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  ) },
+  { path: '/agent', element: (
+    <ProtectedRoute role="agent">
+      <DashboardLayout title="Delivery Agent Dashboard">
+        <AgentDashboardPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  ) },
+  { path: '/dashboard', element: (
+    <ProtectedRoute>
+      <DashboardLayout title="Customer Dashboard">
+        <CustomerDashboard />
+      </DashboardLayout>
+    </ProtectedRoute>
+  ) },
+  { path: '/admin/dashboard', element: (
+    <ProtectedRoute role="admin">
+      <DashboardLayout title="System Admin Dashboard">
+        <AdminDashboardPage />
+      </DashboardLayout>
+    </ProtectedRoute>
+  ) },
 ]);
 
 const root = createRoot(document.getElementById('root')!);
