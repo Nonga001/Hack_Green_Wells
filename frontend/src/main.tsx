@@ -324,7 +324,12 @@ function DashboardLayout({ title, children }: { title: string; children: React.R
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-sm border-b border-slate-200">
         <div className="mx-auto w-full max-w-6xl px-4 py-4 flex items-center justify-between">
           <h1 className="text-xl md:text-2xl font-semibold text-slate-900">Hello{userName ? `, ${userName}` : ''} – {title}</h1>
-          <button onClick={() => { clearToken(); navigate('/'); }} className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-white shadow hover:shadow-md hover:bg-rose-700 active:scale-[.98] transition">
+          <button
+            onClick={() => {
+              if (confirm('Are you sure you want to logout?')) { clearToken(); navigate('/'); }
+            }}
+            className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-white shadow hover:shadow-md hover:bg-rose-700 active:scale-[.98] transition"
+          >
             <span>↩</span>
             <span>Logout</span>
           </button>

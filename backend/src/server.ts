@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { connectToDatabase } from './config/db.js';
 import authRoutes from './routes/auth.js';
+import userRoutes from './routes/user.js';
 
 const app = express();
 const port = process.env.PORT ? Number(process.env.PORT) : 4000;
@@ -17,6 +18,7 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/auth', authRoutes);
+app.use('/user', userRoutes);
 
 async function start() {
   try {

@@ -22,6 +22,11 @@ export function getToken(): string | null {
   return localStorage.getItem('token');
 }
 
+export function authHeaders(): HeadersInit {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export function clearToken() {
   localStorage.removeItem('token');
 }
@@ -45,6 +50,19 @@ export function decodeUserNameFromToken(token: string | null): string | null {
     return json.fullName || json.name || json.email || null;
   } catch {
     return null;
+  }
+}
+
+export function decodeUserFromToken(token: string | null): { fullName: string | null; email: string | null } {
+  if (!token) return { fullName: null, email: null };
+  try {
+    const [, payload] = token.split('.');
+    const json = JSON.parse(atob(payload));
+    const fullName: string | null = json.fullName || json.name || null;
+    const email: string | null = json.email || null;
+    return { fullName, email };
+  } catch {
+    return { fullName: null, email: null };
   }
 }
 
