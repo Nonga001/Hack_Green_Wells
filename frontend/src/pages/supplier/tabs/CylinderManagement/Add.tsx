@@ -1,6 +1,7 @@
 import React from 'react';
 import Card from '../../components/Card';
 import type { CylinderRow } from '../Cylinders';
+import { api, authHeaders } from '../../../../lib/api';
 
 function generateCylinderId(): string {
   const num = Math.floor(100000 + Math.random() * 900000);
@@ -99,7 +100,23 @@ export default function AddCylinder({ onAdd }: { onAdd: (row: CylinderRow) => vo
           added: new Date().toISOString().slice(0,10),
           coords,
         };
-        setNotice({ type:'success', text:'Cylinder added. QR generated.'});
+        try {
+          await api('/cylinders', { method:'POST', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({
+            cylId: id,
+            size,
+            brand,
+            manufactureDate,
+            condition,
+            status: 'Available',
+            owner: 'Supplier',
+            locationText: location,
+            coords,
+          }) });
+          setNotice({ type:'success', text:'Cylinder saved to inventory. QR generated.'});
+        } catch (e: any) {
+          setNotice({ type:'error', text: e?.message || 'Failed to save cylinder.'});
+          return;
+        }
         onAdd(row);
         await generateQrUrl();
         resetForm();

@@ -340,7 +340,7 @@ function DashboardLayout({ title, children }: { title: string; children: React.R
           <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-white/30 p-4 md:p-6">
             {children}
           </div>
-        </div>
+      </div>
       </main>
       <footer className="border-t border-slate-200 bg-white/80">
         <div className="mx-auto w-full max-w-6xl px-4 py-4 text-xs md:text-sm text-slate-600">© SmartLPG 2025</div>

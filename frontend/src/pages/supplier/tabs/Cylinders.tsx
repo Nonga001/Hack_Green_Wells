@@ -2,6 +2,7 @@ import React from 'react';
 import Card from '../components/Card';
 import AddCylinder from './CylinderManagement/Add';
 import Inventory from './CylinderManagement/Inventory';
+import { api, authHeaders } from '../../../lib/api';
 
 export type CylinderRow = {
   id: string;
@@ -22,6 +23,27 @@ export default function Cylinders() {
     setRows((prev) => [row, ...prev]);
     setTab('inventory');
   }
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const docs = await api('/cylinders', { headers: { ...authHeaders() } });
+        const mapped: CylinderRow[] = (docs || []).map((d: any) => ({
+          id: d.cylId,
+          size: d.size,
+          brand: d.brand,
+          status: d.status || 'Available',
+          owner: d.owner || 'Supplier',
+          location: d.locationText || '',
+          added: (d.createdAt || '').slice(0,10),
+          coords: d.coords || null,
+        }));
+        setRows(mapped);
+      } catch {
+        // ignore load errors for now
+      }
+    })();
+  }, []);
 
   return (
     <div className="space-y-3">
