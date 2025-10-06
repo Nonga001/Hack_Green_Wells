@@ -1,7 +1,7 @@
 import 'dotenv/config';
-import { connectToDatabase } from './config/db';
-import { User } from './models/User';
-import { hashPassword } from './utils/password';
+import { connectToDatabase } from './config/db.js';
+import { User } from './models/User.js';
+import { hashPassword } from './utils/password.js';
 
 async function main() {
   const uri = process.env.MONGODB_URI || '';
