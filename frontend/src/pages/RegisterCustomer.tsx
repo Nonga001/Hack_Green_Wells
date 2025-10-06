@@ -62,39 +62,103 @@ export default function RegisterCustomer() {
                      password === confirmPassword;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-2xl bg-white rounded-xl shadow p-6 transition-transform duration-200 hover:shadow-md">
-        <h2 className="text-2xl font-semibold text-slate-900">Register as Customer</h2>
-        <form onSubmit={onSubmit} className="mt-4 grid gap-3 max-w-2xl">
-          <label className="text-sm font-medium text-slate-700">
-            Full Name
-            <input className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400" placeholder="Jane Doe" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
-          </label>
-          <label className="text-sm font-medium text-slate-700">
-            Email
-            <input className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400" placeholder="you@example.com" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          </label>
-          <label className="text-sm font-medium text-slate-700">
-            Phone Number
-            <input className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400" placeholder="0712 345 678" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} required />
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label className="text-sm font-medium text-slate-700">
-              Password
-              <div className="mt-1 relative">
-                <input className="w-full rounded-md border border-slate-300 pr-12 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400" placeholder="••••••••" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required />
-                <button type="button" aria-label="Toggle password visibility" onClick={() => setShowPassword((v) => !v)} className="absolute inset-y-0 right-2 my-auto h-8 w-8 grid place-items-center rounded-md hover:bg-slate-100 transition">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-teal-50 px-4 py-8 relative overflow-hidden">
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-20 -right-20 w-40 h-40 bg-emerald-200 rounded-full mix-blend-multiply filter blur-xl opacity-60 animate-blob"></div>
+        <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-teal-200 rounded-full mix-blend-multiply filter blur-xl opacity-60 animate-blob animation-delay-2000"></div>
+      </div>
+      
+      <div className="w-full max-w-2xl bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-8 relative z-10 animate-fade-in-up border border-white/20">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <span className="text-2xl">👤</span>
+          </div>
+          <h2 className="text-3xl font-bold text-slate-900 mb-2">Join as Customer</h2>
+          <p className="text-slate-600">Create your account to start ordering LPG</p>
+        </div>
+        
+        <form onSubmit={onSubmit} className="space-y-6">
+          <div className="space-y-1">
+            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <span>👤</span>
+              Full Name
+            </label>
+            <input 
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 transition-all duration-200 hover:border-slate-400" 
+              placeholder="Jane Doe" 
+              value={fullName} 
+              onChange={(e) => setFullName(e.target.value)} 
+              required 
+            />
+          </div>
+          
+          <div className="space-y-1">
+            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <span>📧</span>
+              Email Address
+            </label>
+            <input 
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 transition-all duration-200 hover:border-slate-400" 
+              placeholder="you@example.com" 
+              type="email" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              required 
+            />
+          </div>
+          
+          <div className="space-y-1">
+            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <span>📱</span>
+              Phone Number
+            </label>
+            <input 
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 transition-all duration-200 hover:border-slate-400" 
+              placeholder="0712 345 678" 
+              value={phoneNumber} 
+              onChange={(e) => setPhoneNumber(e.target.value)} 
+              required 
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="space-y-1">
+              <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <span>🔒</span>
+                Password
+              </label>
+              <div className="relative">
+                <input 
+                  className="w-full rounded-xl border border-slate-300 pr-12 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 transition-all duration-200 hover:border-slate-400" 
+                  placeholder="••••••••" 
+                  type={showPassword ? 'text' : 'password'} 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  required 
+                />
+                <button 
+                  type="button" 
+                  aria-label="Toggle password visibility" 
+                  onClick={() => setShowPassword((v) => !v)} 
+                  className="absolute inset-y-0 right-3 my-auto h-8 w-8 grid place-items-center rounded-lg hover:bg-slate-100 transition-all duration-200 hover:scale-110"
+                >
                   <span className="text-lg" role="img" aria-hidden>{showPassword ? '🙈' : '👁️'}</span>
                 </button>
               </div>
               <PasswordStrengthChecker password={password} onStrengthChange={setIsPasswordStrong} />
-            </label>
-            <label className="text-sm font-medium text-slate-700">
-              Confirm Password
-              <div className="mt-1 relative">
+            </div>
+            
+            <div className="space-y-1">
+              <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <span>🔐</span>
+                Confirm Password
+              </label>
+              <div className="relative">
                 <input 
-                  className={`w-full rounded-md border pr-12 px-3 py-2 focus:outline-none focus:ring-2 ${
-                    passwordError ? 'border-red-300 focus:ring-red-400' : 'border-slate-300 focus:ring-slate-400'
+                  className={`w-full rounded-xl border pr-12 px-4 py-3 focus:outline-none focus:ring-2 transition-all duration-200 ${
+                    passwordError 
+                      ? 'border-red-300 focus:ring-red-400 focus:border-red-400' 
+                      : 'border-slate-300 focus:ring-emerald-400 focus:border-emerald-400 hover:border-slate-400'
                   }`} 
                   placeholder="••••••••" 
                   type={showConfirmPassword ? 'text' : 'password'} 
@@ -105,39 +169,115 @@ export default function RegisterCustomer() {
                   }} 
                   required 
                 />
-                <button type="button" aria-label="Toggle confirm password visibility" onClick={() => setShowConfirmPassword((v) => !v)} className="absolute inset-y-0 right-2 my-auto h-8 w-8 grid place-items-center rounded-md hover:bg-slate-100 transition">
+                <button 
+                  type="button" 
+                  aria-label="Toggle confirm password visibility" 
+                  onClick={() => setShowConfirmPassword((v) => !v)} 
+                  className="absolute inset-y-0 right-3 my-auto h-8 w-8 grid place-items-center rounded-lg hover:bg-slate-100 transition-all duration-200 hover:scale-110"
+                >
                   <span className="text-lg" role="img" aria-hidden>{showConfirmPassword ? '🙈' : '👁️'}</span>
                 </button>
               </div>
-              {passwordError && <div className="text-sm text-red-600 mt-1">{passwordError}</div>}
+              {passwordError && (
+                <div className="text-sm text-red-600 mt-1 flex items-center gap-1 animate-shake">
+                  <span>⚠️</span>
+                  {passwordError}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+              <span>🏠</span>
+              Delivery Address
             </label>
+            <input 
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 transition-all duration-200 hover:border-slate-400" 
+              placeholder="123 Main Street, Apartment 4B" 
+              value={addressLine} 
+              onChange={(e) => setAddressLine(e.target.value)} 
+              required 
+            />
           </div>
-          <input className="w-full rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400" placeholder="Delivery Address" value={addressLine} onChange={(e) => setAddressLine(e.target.value)} required />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <input className="rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400" placeholder="City/Town" value={city} onChange={(e) => setCity(e.target.value)} required />
-            <input className="rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-400" placeholder="Postal Code" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} required />
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="space-y-1">
+              <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <span>🏙️</span>
+                City/Town
+              </label>
+              <input 
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 transition-all duration-200 hover:border-slate-400" 
+                placeholder="Nairobi" 
+                value={city} 
+                onChange={(e) => setCity(e.target.value)} 
+                required 
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <span>📮</span>
+                Postal Code
+              </label>
+              <input 
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 transition-all duration-200 hover:border-slate-400" 
+                placeholder="00100" 
+                value={postalCode} 
+                onChange={(e) => setPostalCode(e.target.value)} 
+                required 
+              />
+            </div>
           </div>
-          {error && <div className="text-sm text-red-600">{error}</div>}
+          
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 animate-shake">
+              <div className="flex items-center gap-2">
+                <span className="text-red-500">⚠️</span>
+                <span className="text-sm text-red-700 font-medium">{error}</span>
+              </div>
+            </div>
+          )}
+          
           <button 
             disabled={loading || !isFormValid} 
             type="submit" 
-            className={`inline-flex items-center justify-center rounded-md px-4 py-2 text-white shadow transition ${
+            className={`w-full inline-flex items-center justify-center rounded-xl px-6 py-4 text-white font-semibold shadow-lg transition-all duration-300 ${
               isFormValid && !loading 
-                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:shadow-md hover:from-emerald-700 hover:to-teal-700 active:scale-[.99]' 
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:shadow-xl hover:from-emerald-700 hover:to-teal-700 active:scale-[.98] transform hover:scale-105' 
                 : 'bg-gray-400 cursor-not-allowed'
             }`}
           >
-            {loading ? 'Loading...' : 'Register'}
+            {loading ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                Creating Account...
+              </>
+            ) : (
+              <>
+                <span className="mr-2">✨</span>
+                Create Account
+              </>
+            )}
           </button>
         </form>
-        <div className="mt-4 text-sm text-slate-600">
-          Already have an account?{' '}
-          <Link to="/login" className="text-emerald-700 hover:underline">Login here</Link>
+        
+        <div className="mt-6 text-center">
+          <p className="text-sm text-slate-600">
+            Already have an account?{' '}
+            <Link to="/login" className="text-emerald-700 hover:text-emerald-800 font-semibold hover:underline transition-colors duration-200">
+              Login here
+            </Link>
+          </p>
         </div>
-        <div className="mt-4 flex justify-center">
-          <button type="button" onClick={() => navigate('/register')} className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50 transition">
-            <span>←</span>
-            <span className="text-sm">Back</span>
+        
+        <div className="mt-6 flex justify-center">
+          <button 
+            type="button" 
+            onClick={() => navigate('/register')} 
+            className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50 hover:ring-emerald-300 hover:text-emerald-700 transform hover:scale-105 transition-all duration-200"
+          >
+            <span className="text-lg">←</span>
+            <span className="text-sm font-medium">Back to Registration</span>
           </button>
         </div>
       </div>

@@ -64,27 +64,49 @@ export default function PasswordStrengthChecker({ password, className = '', onSt
   if (!password) return null;
 
   return (
-    <div className={`mt-2 ${className}`}>
-      <div className="flex items-center gap-2 mb-2">
-        <div className="flex-1 bg-gray-200 rounded-full h-2">
+    <div className={`mt-3 ${className} animate-fade-in`}>
+      <div className="flex items-center gap-3 mb-3">
+        <div className="flex-1 bg-gray-200 rounded-full h-2.5 overflow-hidden">
           <div 
-            className={`h-2 rounded-full transition-all duration-300 ${getStrengthColor()}`}
+            className={`h-2.5 rounded-full transition-all duration-500 ease-out ${getStrengthColor()} animate-pulse`}
             style={{ width: `${(strengthScore / requirements.length) * 100}%` }}
           />
         </div>
-        <span className="text-xs font-medium text-slate-600">
+        <span className={`text-xs font-bold px-2 py-1 rounded-full transition-all duration-300 ${
+          strengthScore === 0 ? 'bg-gray-100 text-gray-600' :
+          strengthScore <= 2 ? 'bg-red-100 text-red-700' :
+          strengthScore <= 3 ? 'bg-yellow-100 text-yellow-700' :
+          strengthScore <= 4 ? 'bg-blue-100 text-blue-700' :
+          'bg-green-100 text-green-700'
+        }`}>
           {getStrengthText()}
         </span>
       </div>
-      <div className="space-y-1">
+      <div className="space-y-2">
         {requirements.map((req, index) => (
-          <div key={index} className="flex items-center gap-2 text-xs">
-            <span className={`w-4 h-4 rounded-full flex items-center justify-center ${
-              req.met ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-400'
+          <div 
+            key={index} 
+            className={`flex items-center gap-3 text-xs transition-all duration-300 ${
+              req.met ? 'animate-slide-in-left' : ''
+            }`}
+            style={{ animationDelay: `${index * 100}ms` }}
+          >
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center transition-all duration-300 transform ${
+              req.met 
+                ? 'bg-green-500 text-white shadow-lg scale-110' 
+                : 'bg-gray-200 text-gray-400 hover:bg-gray-300'
             }`}>
-              {req.met ? '✓' : '○'}
+              {req.met ? (
+                <span className="animate-bounce-in">✓</span>
+              ) : (
+                <span>○</span>
+              )}
             </span>
-            <span className={req.met ? 'text-green-700' : 'text-gray-500'}>
+            <span className={`transition-colors duration-300 ${
+              req.met 
+                ? 'text-green-700 font-medium' 
+                : 'text-gray-500'
+            }`}>
               {req.label}
             </span>
           </div>
