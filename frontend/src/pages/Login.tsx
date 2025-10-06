@@ -28,7 +28,11 @@ export default function Login() {
       else if (userRole === 'agent') window.location.href = '/agent';
       else window.location.href = '/customer';
     } catch (err: any) {
-      setError(err.message || 'Login failed');
+      if (err.message === 'Invalid credentials') {
+        setError('Incorrect email or password. Please check your credentials and try again.');
+      } else {
+        setError(err.message || 'Login failed');
+      }
     } finally {
       setLoading(false);
     }

@@ -17,7 +17,7 @@ router.post('/register/customer', async (req: Request, res: Response) => {
   const { fullName, email, phoneNumber, password, deliveryAddress } = parse.data;
   try {
     const existing = await User.findOne({ email });
-    if (existing) return res.status(409).json({ message: 'Email already in use' });
+    if (existing) return res.status(409).json({ message: 'An account with this email address already exists. Please use a different email or try logging in.' });
     const passwordHash = await hashPassword(password);
     const user = await User.create({
       role: 'customer', fullName, email, phoneNumber, passwordHash, deliveryAddress,
@@ -35,7 +35,7 @@ router.post('/register/supplier', async (req: Request, res: Response) => {
   const { businessName, contactPersonName, email, phoneNumber, password, businessAddress, businessRegistrationNumber } = parse.data;
   try {
     const existing = await User.findOne({ email });
-    if (existing) return res.status(409).json({ message: 'Email already in use' });
+    if (existing) return res.status(409).json({ message: 'An account with this email address already exists. Please use a different email or try logging in.' });
     const passwordHash = await hashPassword(password);
     const user = await User.create({
       role: 'supplier', businessName, contactPersonName, email, phoneNumber, passwordHash, businessAddress, businessRegistrationNumber,
@@ -53,7 +53,7 @@ router.post('/register/agent', async (req: Request, res: Response) => {
   const { fullName, email, phoneNumber, password, vehicleType, vehicleRegistrationNumber, nationalIdOrLicense, baseArea } = parse.data;
   try {
     const existing = await User.findOne({ email });
-    if (existing) return res.status(409).json({ message: 'Email already in use' });
+    if (existing) return res.status(409).json({ message: 'An account with this email address already exists. Please use a different email or try logging in.' });
     const passwordHash = await hashPassword(password);
     const user = await User.create({
       role: 'agent', fullName, email, phoneNumber, passwordHash, vehicleType, vehicleRegistrationNumber, nationalIdOrLicense, baseArea,
