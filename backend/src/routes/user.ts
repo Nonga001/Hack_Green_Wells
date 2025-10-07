@@ -19,12 +19,15 @@ router.get('/me', requireAuth, async (req: AuthRequest, res: Response) => {
     businessAddress: user.businessAddress || '',
     businessLat: user.businessLat,
     businessLon: user.businessLon,
+    availability: user.availability || false,
+    agentLat: user.agentLat,
+    agentLon: user.agentLon,
   });
 });
 
 // Update phone and address
 router.put('/me', requireAuth, async (req: AuthRequest, res: Response) => {
-  const { phoneNumber, deliveryAddress, businessAddress, businessLat, businessLon } = req.body || {};
+  const { phoneNumber, deliveryAddress, businessAddress, businessLat, businessLon, availability, agentLat, agentLon } = req.body || {};
   const user = await User.findById(req.userId);
   if (!user) return res.status(404).json({ message: 'User not found' });
   if (typeof phoneNumber === 'string') user.phoneNumber = phoneNumber;
@@ -39,6 +42,11 @@ router.put('/me', requireAuth, async (req: AuthRequest, res: Response) => {
     if (typeof businessAddress === 'string') user.businessAddress = businessAddress;
     if (typeof businessLat === 'number') user.businessLat = businessLat;
     if (typeof businessLon === 'number') user.businessLon = businessLon;
+  }
+  if (user.role === 'agent') {
+    if (typeof availability === 'boolean') user.availability = availability;
+    if (typeof agentLat === 'number') user.agentLat = agentLat;
+    if (typeof agentLon === 'number') user.agentLon = agentLon;
   }
   await user.save();
   return res.json({ ok: true });

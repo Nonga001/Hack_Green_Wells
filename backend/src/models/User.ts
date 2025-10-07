@@ -23,6 +23,10 @@ export interface UserDocument extends Document {
   vehicleRegistrationNumber?: string;
   nationalIdOrLicense?: string;
   baseArea?: string;
+  // Agent fields
+  agentLat?: number;
+  agentLon?: number;
+  availability?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -54,6 +58,9 @@ const UserSchema = new Schema<UserDocument>(
     vehicleRegistrationNumber: { type: String },
     nationalIdOrLicense: { type: String },
     baseArea: { type: String },
+    agentLat: { type: Number },
+    agentLon: { type: Number },
+    availability: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
