@@ -8,6 +8,7 @@ export type CylinderRow = {
   id: string;
   size: string;
   brand: string;
+  price?: number;
   status: 'Available' | 'In Transit' | 'Delivered' | 'Lost' | 'Damaged';
   owner: string;
   location: string;
@@ -32,6 +33,7 @@ export default function Cylinders() {
           id: d.cylId,
           size: d.size,
           brand: d.brand,
+          price: d.price,
           status: d.status || 'Available',
           owner: d.owner || 'Supplier',
           location: d.locationText || '',

@@ -1,18 +1,31 @@
 import React from 'react';
 import Card from '../components/Card';
+import { api, authHeaders } from '../../../lib/api';
 
 export default function Overview() {
-  const [activeDeliveries, setActiveDeliveries] = React.useState<number>(12);
+  const [activeDeliveries, setActiveDeliveries] = React.useState<number>(0);
   const [salesView, setSalesView] = React.useState<'daily' | 'weekly' | 'monthly'>('daily');
-  const sales = {
-    daily: 78500,
-    weekly: 522000,
-    monthly: 2195000,
-  };
-  const metrics = {
-    totalOrders: 182,
-    returnedCylinders: 34,
-  };
+  const [metrics, setMetrics] = React.useState<{ totalOrders: number; returnedCylinders: number; sales: { daily: number; weekly: number; monthly: number } }>({ totalOrders: 0, returnedCylinders: 0, sales: { daily: 0, weekly: 0, monthly: 0 } });
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const orders = await api('/orders/supplier', { headers: { ...authHeaders() } });
+        const totalOrders = (orders || []).length;
+        const active = (orders || []).filter((o:any)=> o.status==='Approved' || o.status==='In Transit').length;
+        setActiveDeliveries(active);
+        const now = new Date();
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const sum = (arr:any[]) => arr.reduce((acc, o:any)=> acc + Number(o.total||0), 0);
+        const daily = sum((orders||[]).filter((o:any)=> new Date(o.createdAt) >= startOfDay));
+        const weekly = sum((orders||[]).filter((o:any)=> new Date(o.createdAt) >= startOfWeek));
+        const monthly = sum((orders||[]).filter((o:any)=> new Date(o.createdAt) >= startOfMonth));
+        setMetrics({ totalOrders, returnedCylinders: 0, sales: { daily, weekly, monthly } });
+      } catch {}
+    })();
+  }, []);
   const alerts = [
     { id: 1, text: 'Low stock: 6kg cylinders below threshold', level: 'warning' },
     { id: 2, text: 'Delayed deliveries: 3 orders past ETA', level: 'warning' },
@@ -53,7 +66,7 @@ export default function Overview() {
                 <button onClick={()=>setSalesView('monthly')} className={`px-2 py-0.5 rounded ${salesView==='monthly'?'bg-emerald-100 text-emerald-700':'hover:bg-slate-100'}`}>M</button>
               </div>
             </div>
-            <div className="text-2xl font-bold">{sales[salesView].toLocaleString()}</div>
+            <div className="text-2xl font-bold">{metrics.sales[salesView].toLocaleString()}</div>
           </div>
         </div>
       </Card>

@@ -1,12 +1,15 @@
 import React from 'react';
 import Card from '../components/Card';
+import { api, authHeaders } from '../../../lib/api';
 
 export default function Overview() {
   const mockSummary = { predictionDays: 5, points: 320, tier: 'Silver' };
-  const mockOrders = [
-    { id: 'ORD-1024', date: '2025-10-01', size: '13kg', supplier: 'EcoGas', status: 'Delivered' },
-    { id: 'ORD-1025', date: '2025-10-05', size: '6kg', supplier: 'CityLPG', status: 'In Transit' },
-  ];
+  const [orders, setOrders] = React.useState<any[]>([]);
+  React.useEffect(() => {
+    (async () => {
+      try { const docs = await api('/orders/customer', { headers: { ...authHeaders() } }); setOrders(docs || []); } catch {}
+    })();
+  }, []);
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <Card className="lg:col-span-2">
@@ -33,15 +36,16 @@ export default function Overview() {
       <Card className="lg:col-span-2">
         <h3 className="text-lg font-semibold text-slate-900">Active Orders</h3>
         <div className="mt-3 grid md:grid-cols-2 gap-3">
-          {mockOrders.slice(0, 2).map((o) => (
-            <div key={o.id} className="rounded-lg border border-slate-200 p-3 flex items-center justify-between">
+          {orders.filter((o:any)=> o.status==='Pending' || o.status==='Approved' || o.status==='In Transit').map((o:any) => (
+            <div key={o._id} className="rounded-lg border border-slate-200 p-3 flex items-center justify-between">
               <div>
-                <div className="text-sm font-medium text-slate-900">{o.id} • {o.size}</div>
-                <div className="text-xs text-slate-600">{o.supplier} • {o.date}</div>
+                <div className="text-sm font-medium text-slate-900">{o._id} • {o.cylinder?.size} • {o.cylinder?.brand}</div>
+                <div className="text-xs text-slate-600">{o.delivery?.date} • Supplier: {o.supplier?.name || '-'} • {o.supplier?.phone || '-'}</div>
               </div>
               <span className={`text-xs px-2 py-1 rounded-full ${
                 o.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' :
                 o.status === 'In Transit' ? 'bg-blue-100 text-blue-700' :
+                o.status === 'Approved' ? 'bg-teal-100 text-teal-700' :
                 o.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-700'
               }`}>{o.status}</span>
             </div>
