@@ -13,6 +13,7 @@ export default function AddCylinder({ onAdd }: { onAdd: (row: CylinderRow) => vo
   const [brand, setBrand] = React.useState('Oryx');
   const [manufactureDate, setManufactureDate] = React.useState('');
   const [condition, setCondition] = React.useState<'New' | 'Used' | 'Damaged'>('New');
+  const [price, setPrice] = React.useState<string>('');
   const [cylId, setCylId] = React.useState(generateCylinderId());
   const [status] = React.useState('Available');
   const [location, setLocation] = React.useState<string>('Business Address');
@@ -50,11 +51,13 @@ export default function AddCylinder({ onAdd }: { onAdd: (row: CylinderRow) => vo
   }
 
   function buildQrPayload() {
+    const numericPrice = price === '' ? undefined : Number(price);
     return {
       id: supplierScopedId(cylId),
       size,
       brand,
       manufactureDate,
+      price: typeof numericPrice === 'number' && !isNaN(numericPrice) ? numericPrice : undefined,
     };
   }
 
@@ -101,10 +104,16 @@ export default function AddCylinder({ onAdd }: { onAdd: (row: CylinderRow) => vo
           coords,
         };
         try {
+          const numericPrice = price === '' ? undefined : Number(price);
+          if (numericPrice !== undefined && (isNaN(numericPrice) || numericPrice < 0)) {
+            setNotice({ type:'error', text:'Please enter a valid non-negative price.'});
+            return;
+          }
           await api('/cylinders', { method:'POST', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({
             cylId: id,
             size,
             brand,
+            price: numericPrice,
             manufactureDate,
             condition,
             status: 'Available',
@@ -156,6 +165,9 @@ export default function AddCylinder({ onAdd }: { onAdd: (row: CylinderRow) => vo
             <div className="text-xs text-slate-500">Status</div>
             <div className="text-base font-semibold">{status}</div>
           </div>
+          <label className="text-sm font-medium text-slate-700">Price (KES)
+            <input type="number" min={0} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" value={price} onChange={(e)=>setPrice(e.target.value)} />
+          </label>
           <div>
             <div className="text-xs text-slate-500">Initial Location</div>
             <div className="text-sm text-slate-700">{location}</div>

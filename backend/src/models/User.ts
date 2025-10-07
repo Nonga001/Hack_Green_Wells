@@ -16,6 +16,8 @@ export interface UserDocument extends Document {
     postalCode?: string;
   };
   businessAddress?: string;
+  businessLat?: number;
+  businessLon?: number;
   businessRegistrationNumber?: string;
   vehicleType?: string;
   vehicleRegistrationNumber?: string;
@@ -45,6 +47,8 @@ const UserSchema = new Schema<UserDocument>(
     passwordHash: { type: String, required: true },
     deliveryAddress: { type: DeliveryAddressSchema },
     businessAddress: { type: String },
+    businessLat: { type: Number },
+    businessLon: { type: Number },
     businessRegistrationNumber: { type: String },
     vehicleType: { type: String },
     vehicleRegistrationNumber: { type: String },

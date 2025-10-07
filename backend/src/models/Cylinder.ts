@@ -5,6 +5,7 @@ export interface CylinderDocument extends Document {
   cylId: string;
   size: string;
   brand: string;
+  price?: number;
   manufactureDate?: string;
   condition?: 'New' | 'Used' | 'Damaged';
   status: 'Available' | 'In Transit' | 'Delivered' | 'Lost' | 'Damaged';
@@ -29,9 +30,10 @@ const CylinderSchema = new Schema<CylinderDocument>(
     cylId: { type: String, required: true },
     size: { type: String, required: true },
     brand: { type: String, required: true },
+    price: { type: Number },
     manufactureDate: { type: String },
     condition: { type: String, enum: ['New', 'Used', 'Damaged'], default: 'New' },
-    status: { type: String, enum: ['Available', 'In Transit', 'Delivered', 'Lost', 'Damaged'], default: 'Available' },
+    status: { type: String, enum: ['Available', 'Booked', 'In Transit', 'Delivered', 'Lost', 'Damaged'], default: 'Available' },
     owner: { type: String, default: 'Supplier' },
     locationText: { type: String },
     coords: { type: CoordsSchema, default: null },

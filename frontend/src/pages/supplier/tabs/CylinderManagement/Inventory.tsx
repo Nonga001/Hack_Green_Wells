@@ -1,6 +1,7 @@
 import React from 'react';
 import Card from '../../components/Card';
 import type { CylinderRow } from '../Cylinders';
+import { api, authHeaders } from '../../../../lib/api';
 
 export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
   const [status, setStatus] = React.useState<'All' | CylinderRow['status']>('All');
@@ -13,6 +14,7 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
         <select className="rounded-xl border border-slate-300 px-3 py-2 text-sm" value={status} onChange={(e)=>setStatus(e.target.value as any)}>
           <option>All</option>
           <option>Available</option>
+          <option>Booked</option>
           <option>In Transit</option>
           <option>Delivered</option>
           <option>Lost</option>
@@ -26,6 +28,7 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
               <th className="py-2 pr-4">Cylinder ID</th>
               <th className="py-2 pr-4">Size</th>
               <th className="py-2 pr-4">Brand</th>
+              <th className="py-2 pr-4">Price</th>
               <th className="py-2 pr-4">Status</th>
               <th className="py-2 pr-4">Current Owner</th>
               <th className="py-2 pr-4">Last Scanned Location</th>
@@ -39,6 +42,7 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
                 <td className="py-2 pr-4 font-mono">{r.id}</td>
                 <td className="py-2 pr-4">{r.size}</td>
                 <td className="py-2 pr-4">{r.brand}</td>
+                <td className="py-2 pr-4">{typeof (r as any).price === 'number' ? `KES ${(r as any).price}` : '-'}</td>
                 <td className="py-2 pr-4">{r.status}</td>
                 <td className="py-2 pr-4">{r.owner}</td>
                 <td className="py-2 pr-4">{r.location}</td>
@@ -72,7 +76,11 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
               )}
               {modal.type==='qr' && (
                 <div className="grid place-items-center">
-                  <img alt="QR" className="h-64 w-64 object-contain" src={`https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(JSON.stringify({ id: modal.row.id, size: modal.row.size, brand: modal.row.brand }))}`} />
+                  <img
+                    alt="QR"
+                    className="h-64 w-64 object-contain"
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(JSON.stringify({ id: modal.row.id, size: modal.row.size, brand: modal.row.brand, price: (modal.row as any).price }))}`}
+                  />
                 </div>
               )}
               {modal.type==='edit' && (
@@ -80,7 +88,35 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
                   <div className="font-mono">{modal.row.id}</div>
                   <div>Size: {modal.row.size}</div>
                   <div>Brand: {modal.row.brand}</div>
-                  <div>Status: {modal.row.status}</div>
+                  <div className="flex items-center gap-2">Status
+                    <select disabled={(modal.row as any).status==='Booked'} className="ml-2 rounded-xl border border-slate-300 px-2 py-1 disabled:bg-slate-100" defaultValue={modal.row.status} onChange={async (e)=>{
+                      try { await api(`/cylinders/${modal.row.id}`, { method:'PATCH', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ status: e.target.value })}); } catch {}
+                    }}>
+                      <option>Available</option>
+                      <option disabled>Booked</option>
+                      <option>In Transit</option>
+                      <option>Delivered</option>
+                      <option>Lost</option>
+                      <option>Damaged</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">Price (KES)
+                    <input id="price-input" disabled={(modal.row as any).status==='Booked'} className="ml-2 rounded-xl border border-slate-300 px-2 py-1 w-32 disabled:bg-slate-100" type="number" min={0} placeholder="e.g. 2450" defaultValue={(modal.row as any).price ?? ''} />
+                    <button
+                      disabled={(modal.row as any).status==='Booked'}
+                      className="rounded-lg px-3 py-1.5 ring-1 ring-slate-200 hover:bg-slate-50 disabled:bg-slate-100"
+                      onClick={async ()=>{
+                        const input = document.getElementById('price-input') as HTMLInputElement | null;
+                        if (!input) return;
+                        const val = Number(input.value);
+                        if (isNaN(val) || val < 0) return;
+                        try { await api(`/cylinders/${modal.row.id}`, { method:'PATCH', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ price: val })}); (modal.row as any).price = val; } catch {}
+                      }}
+                    >Save Changes</button>
+                  </div>
+                  {(modal.row as any).status==='Booked' && (
+                    <div className="text-xs text-slate-500">Booked cylinders cannot be edited.</div>
+                  )}
                 </div>
               )}
             </div>

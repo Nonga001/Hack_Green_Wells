@@ -9,12 +9,22 @@ const router = express.Router();
 router.get('/me', requireAuth, async (req: AuthRequest, res: Response) => {
   const user = await User.findById(req.userId).lean();
   if (!user) return res.status(404).json({ message: 'User not found' });
-  return res.json({ fullName: user.fullName || '', email: user.email, phoneNumber: user.phoneNumber, deliveryAddress: user.deliveryAddress || {} });
+  return res.json({
+    role: user.role,
+    fullName: user.fullName || user.contactPersonName || '',
+    businessName: user.businessName || '',
+    email: user.email,
+    phoneNumber: user.phoneNumber,
+    deliveryAddress: user.deliveryAddress || {},
+    businessAddress: user.businessAddress || '',
+    businessLat: user.businessLat,
+    businessLon: user.businessLon,
+  });
 });
 
 // Update phone and address
 router.put('/me', requireAuth, async (req: AuthRequest, res: Response) => {
-  const { phoneNumber, deliveryAddress } = req.body || {};
+  const { phoneNumber, deliveryAddress, businessAddress, businessLat, businessLon } = req.body || {};
   const user = await User.findById(req.userId);
   if (!user) return res.status(404).json({ message: 'User not found' });
   if (typeof phoneNumber === 'string') user.phoneNumber = phoneNumber;
@@ -24,6 +34,11 @@ router.put('/me', requireAuth, async (req: AuthRequest, res: Response) => {
       city: deliveryAddress.city || user.deliveryAddress?.city,
       postalCode: deliveryAddress.postalCode || user.deliveryAddress?.postalCode,
     };
+  }
+  if (user.role === 'supplier') {
+    if (typeof businessAddress === 'string') user.businessAddress = businessAddress;
+    if (typeof businessLat === 'number') user.businessLat = businessLat;
+    if (typeof businessLon === 'number') user.businessLon = businessLon;
   }
   await user.save();
   return res.json({ ok: true });
