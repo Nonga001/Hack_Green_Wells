@@ -4,6 +4,7 @@ import { api, authHeaders } from '../../../lib/api';
 
 export default function Orders() {
   const [orders, setOrders] = React.useState<any[]>([]);
+  const [assignModal, setAssignModal] = React.useState<null | { orderId: string; agents: any[] }>(null);
   React.useEffect(() => {
     (async () => {
       try { const docs = await api('/orders/supplier', { headers: { ...authHeaders() } }); setOrders(docs || []); } catch {}
@@ -27,11 +28,44 @@ export default function Orders() {
               }`}>{o.status}</span>
               <button disabled={o.status!=='Pending'} onClick={async ()=>{ try { await api(`/orders/${o._id}`, { method:'PATCH', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ status: 'Approved' })}); o.status='Approved'; setOrders([...orders]); } catch {} }} className={`text-sm px-3 py-1.5 rounded-lg ring-1 ring-slate-200 ${o.status==='Pending'?'hover:bg-slate-50':'opacity-50 cursor-not-allowed'}`}>Accept</button>
               <button disabled={o.status!=='Pending'} onClick={async ()=>{ try { await api(`/orders/${o._id}`, { method:'PATCH', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ status: 'Rejected' })}); o.status='Rejected'; setOrders([...orders]); } catch {} }} className={`text-sm px-3 py-1.5 rounded-lg ring-1 ring-slate-200 ${o.status==='Pending'?'hover:bg-slate-50':'opacity-50 cursor-not-allowed'}`}>Reject</button>
-              <button disabled={o.status!=='Approved'} className={`text-sm px-3 py-1.5 rounded-lg ring-1 ring-slate-200 ${o.status==='Approved'?'hover:bg-slate-50':'opacity-50 cursor-not-allowed'}`}>Assign Agent</button>
+              <button disabled={o.status!=='Approved'} onClick={async ()=>{
+                try {
+                  const list = await api('/orders/agents/available', { headers: { ...authHeaders() } });
+                  setAssignModal({ orderId: o._id, agents: list || [] });
+                } catch {}
+              }} className={`text-sm px-3 py-1.5 rounded-lg ring-1 ring-slate-200 ${o.status==='Approved'?'hover:bg-slate-50':'opacity-50 cursor-not-allowed'}`}>Assign Agent</button>
             </div>
           </div>
         </Card>
       ))}
+      {assignModal && (
+        <div className="fixed inset-0 bg-black/40 grid place-items-center p-4">
+          <div className="w-full max-w-xl bg-white rounded-2xl shadow-xl p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-lg font-semibold text-slate-900">Assign Delivery Agent</div>
+              <button className="px-3 py-1.5 rounded-lg ring-1 ring-slate-200 hover:bg-slate-50" onClick={()=>setAssignModal(null)}>Close</button>
+            </div>
+            <div className="mt-3 space-y-2">
+              {(assignModal.agents||[]).map((ag:any)=>(
+                <div key={ag.id} className="flex items-center justify-between rounded-lg border border-slate-200 p-2">
+                  <div className="text-sm text-slate-800">{ag.name || '-'} • {ag.phone || '-'} • {isFinite(ag.distanceKm)? `${ag.distanceKm.toFixed(1)} km` : '—'}</div>
+                  <button onClick={async ()=>{
+                    try {
+                      await api(`/orders/${assignModal.orderId}/assign-agent`, { method:'POST', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ agentId: ag.id }) });
+                      const idx = orders.findIndex((o)=> o._id===assignModal.orderId);
+                      if (idx>=0) { orders[idx].status = 'In Transit'; setOrders([...orders]); }
+                      setAssignModal(null);
+                    } catch {}
+                  }} className="text-sm px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">Assign</button>
+                </div>
+              ))}
+              {!assignModal.agents?.length && (
+                <div className="text-sm text-slate-600">No available agents found.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

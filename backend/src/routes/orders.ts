@@ -80,6 +80,42 @@ router.patch('/:orderId', requireAuth, async (req: AuthRequest, res: Response) =
   return res.json({ ok: true });
 });
 
+// Supplier: list available agents sorted by distance to supplier
+router.get('/agents/available', requireAuth, async (req: AuthRequest, res: Response) => {
+  if (req.role !== 'supplier') return res.status(403).json({ message: 'Forbidden' });
+  const supplier = await User.findById(req.userId).lean();
+  if (!supplier) return res.status(404).json({ message: 'Supplier not found' });
+  const agents = await User.find({ role: 'agent', availability: true }).select('fullName phoneNumber agentLat agentLon').lean();
+  function distKm(a: any, b: any) {
+    if (typeof a?.businessLat !== 'number' || typeof a?.businessLon !== 'number' || typeof b?.agentLat !== 'number' || typeof b?.agentLon !== 'number') return Number.POSITIVE_INFINITY;
+    const R = 6371;
+    const toRad = (x:number)=> x*Math.PI/180;
+    const dLat = toRad(b.agentLat - a.businessLat);
+    const dLon = toRad(b.agentLon - a.businessLon);
+    const lat1 = toRad(a.businessLat), lat2 = toRad(b.agentLat);
+    const x = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+    return 2 * R * Math.asin(Math.sqrt(x));
+  }
+  const enriched = (agents || []).map((ag: any) => ({ id: String(ag._id), name: ag.fullName || null, phone: ag.phoneNumber || null, lat: ag.agentLat, lon: ag.agentLon, distanceKm: distKm(supplier, ag) }))
+    .sort((a,b)=> (a.distanceKm - b.distanceKm));
+  return res.json(enriched);
+});
+
+// Supplier assigns an agent (order must be Approved)
+router.post('/:orderId/assign-agent', requireAuth, async (req: AuthRequest, res: Response) => {
+  if (req.role !== 'supplier') return res.status(403).json({ message: 'Forbidden' });
+  const { orderId } = req.params;
+  const { agentId } = req.body || {};
+  if (!agentId) return res.status(400).json({ message: 'agentId required' });
+  const order = await Order.findOne({ _id: orderId, supplierId: req.userId });
+  if (!order) return res.status(404).json({ message: 'Order not found' });
+  if (order.status !== 'Approved') return res.status(400).json({ message: 'Order must be Approved to assign agent' });
+  order.assignedAgentId = agentId;
+  order.status = 'In Transit';
+  await order.save();
+  return res.json({ ok: true });
+});
+
 export default router;
 
 // Simple invoice: time, cylinder id, total price
