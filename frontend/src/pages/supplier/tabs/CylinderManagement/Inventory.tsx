@@ -89,7 +89,7 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
                   <div>Size: {modal.row.size}</div>
                   <div>Brand: {modal.row.brand}</div>
                   <div className="flex items-center gap-2">Status
-                    <select disabled={(modal.row as any).status==='Booked'} className="ml-2 rounded-xl border border-slate-300 px-2 py-1 disabled:bg-slate-100" defaultValue={modal.row.status} onChange={async (e)=>{
+                    <select disabled={(modal.row as any).status==='Booked' || (modal.row as any).status==='Delivered'} className="ml-2 rounded-xl border border-slate-300 px-2 py-1 disabled:bg-slate-100" defaultValue={modal.row.status} onChange={async (e)=>{
                       try { await api(`/cylinders/${modal.row.id}`, { method:'PATCH', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ status: e.target.value })}); } catch {}
                     }}>
                       <option>Available</option>
@@ -101,9 +101,9 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
                     </select>
                   </div>
                   <div className="flex items-center gap-2">Price (KES)
-                    <input id="price-input" disabled={(modal.row as any).status==='Booked'} className="ml-2 rounded-xl border border-slate-300 px-2 py-1 w-32 disabled:bg-slate-100" type="number" min={0} placeholder="e.g. 2450" defaultValue={(modal.row as any).price ?? ''} />
+                    <input id="price-input" disabled={(modal.row as any).status==='Booked' || (modal.row as any).status==='Delivered'} className="ml-2 rounded-xl border border-slate-300 px-2 py-1 w-32 disabled:bg-slate-100" type="number" min={0} placeholder="e.g. 2450" defaultValue={(modal.row as any).price ?? ''} />
                     <button
-                      disabled={(modal.row as any).status==='Booked'}
+                      disabled={(modal.row as any).status==='Booked' || (modal.row as any).status==='Delivered'}
                       className="rounded-lg px-3 py-1.5 ring-1 ring-slate-200 hover:bg-slate-50 disabled:bg-slate-100"
                       onClick={async ()=>{
                         const input = document.getElementById('price-input') as HTMLInputElement | null;
@@ -114,8 +114,8 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
                       }}
                     >Save Changes</button>
                   </div>
-                  {(modal.row as any).status==='Booked' && (
-                    <div className="text-xs text-slate-500">Booked cylinders cannot be edited.</div>
+                  {(((modal.row as any).status==='Booked') || ((modal.row as any).status==='Delivered')) && (
+                    <div className="text-xs text-slate-500">Cylinders that are Booked or Delivered cannot be edited.</div>
                   )}
                 </div>
               )}

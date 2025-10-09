@@ -1,4 +1,5 @@
 import express, { type Response } from 'express';
+import crypto from 'crypto';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { Order } from '../models/Order.js';
 import { Cylinder } from '../models/Cylinder.js';
@@ -85,7 +86,7 @@ router.get('/agents/available', requireAuth, async (req: AuthRequest, res: Respo
   if (req.role !== 'supplier') return res.status(403).json({ message: 'Forbidden' });
   const supplier = await User.findById(req.userId).lean();
   if (!supplier) return res.status(404).json({ message: 'Supplier not found' });
-  const agents = await User.find({ role: 'agent', availability: true }).select('fullName phoneNumber agentLat agentLon').lean();
+  const agents = await User.find({ role: 'agent' }).select('fullName phoneNumber agentLat agentLon availability').lean();
   function distKm(a: any, b: any) {
     if (typeof a?.businessLat !== 'number' || typeof a?.businessLon !== 'number' || typeof b?.agentLat !== 'number' || typeof b?.agentLon !== 'number') return Number.POSITIVE_INFINITY;
     const R = 6371;
@@ -96,7 +97,7 @@ router.get('/agents/available', requireAuth, async (req: AuthRequest, res: Respo
     const x = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
     return 2 * R * Math.asin(Math.sqrt(x));
   }
-  const enriched = (agents || []).map((ag: any) => ({ id: String(ag._id), name: ag.fullName || null, phone: ag.phoneNumber || null, lat: ag.agentLat, lon: ag.agentLon, distanceKm: distKm(supplier, ag) }))
+  const enriched = (agents || []).map((ag: any) => ({ id: String(ag._id), name: ag.fullName || null, phone: ag.phoneNumber || null, lat: ag.agentLat, lon: ag.agentLon, availability: !!ag.availability, distanceKm: distKm(supplier, ag) }))
     .sort((a,b)=> (a.distanceKm - b.distanceKm));
   return res.json(enriched);
 });
@@ -111,8 +112,102 @@ router.post('/:orderId/assign-agent', requireAuth, async (req: AuthRequest, res:
   if (!order) return res.status(404).json({ message: 'Order not found' });
   if (order.status !== 'Approved') return res.status(400).json({ message: 'Order must be Approved to assign agent' });
   order.assignedAgentId = agentId;
-  order.status = 'In Transit';
+  order.status = 'Assigned';
+  // generate OTP (6 digits, 20 min expiry)
+  const otp = (Math.floor(100000 + Math.random() * 900000)).toString();
+  (order as any).otpHash = crypto.createHash('sha256').update(otp).digest('hex');
+  (order as any).otpExpiresAt = new Date(Date.now() + 20 * 60 * 1000);
   await order.save();
+  return res.json({ ok: true });
+});
+
+// Agent: get assigned orders
+router.get('/agent', requireAuth, async (req: AuthRequest, res: Response) => {
+  if (req.role !== 'agent') return res.status(403).json({ message: 'Forbidden' });
+  const docs = await Order.find({ assignedAgentId: req.userId, status: { $in: ['Assigned', 'In Transit'] } }).sort({ createdAt: -1 }).lean();
+  return res.json(docs);
+});
+
+// Agent: accept/decline assignment
+router.post('/:orderId/agent-response', requireAuth, async (req: AuthRequest, res: Response) => {
+  if (req.role !== 'agent') return res.status(403).json({ message: 'Forbidden' });
+  const { orderId } = req.params;
+  const { accept, lat, lon } = req.body || {};
+  const order = await Order.findOne({ _id: orderId, assignedAgentId: req.userId });
+  if (!order) return res.status(404).json({ message: 'Order not found' });
+  if (order.status !== 'Assigned') return res.status(400).json({ message: 'Order is not awaiting agent confirmation' });
+  if (accept) {
+    // Stay in Assigned on accept; transition to In Transit happens on /pickup
+    await order.save();
+  } else {
+    order.assignedAgentId = undefined;
+    order.status = 'Approved';
+    await order.save();
+  }
+  return res.json({ ok: true });
+});
+
+// Customer: generate an OTP for delivery confirmation
+router.post('/:orderId/issue-otp', requireAuth, async (req: AuthRequest, res: Response) => {
+  if (req.role !== 'customer') return res.status(403).json({ message: 'Forbidden' });
+  const { orderId } = req.params;
+  const order = await Order.findOne({ _id: orderId, customerId: req.userId });
+  if (!order) return res.status(404).json({ message: 'Order not found' });
+  if (!['Assigned', 'In Transit'].includes(order.status)) return res.status(400).json({ message: 'OTP is only available when order is Assigned or In Transit' });
+  const otp = (Math.floor(100000 + Math.random() * 900000)).toString();
+  (order as any).otpHash = crypto.createHash('sha256').update(otp).digest('hex');
+  (order as any).otpExpiresAt = new Date(Date.now() + 20 * 60 * 1000);
+  await order.save();
+  return res.json({ otp, expiresInMinutes: 20 });
+});
+
+// Agent pickup: verify cylinder scan, transition to In Transit
+router.post('/:orderId/pickup', requireAuth, async (req: AuthRequest, res: Response) => {
+  if (req.role !== 'agent') return res.status(403).json({ message: 'Forbidden' });
+  const { orderId } = req.params;
+  const { scanCylId, lat, lon } = req.body || {};
+  const order = await Order.findOne({ _id: orderId, assignedAgentId: req.userId });
+  if (!order) return res.status(404).json({ message: 'Order not found' });
+  if (order.status !== 'Assigned') return res.status(400).json({ message: 'Order not ready for pickup' });
+  if (!scanCylId || scanCylId !== (order as any).cylinder?.id) return res.status(400).json({ message: 'Cylinder ID mismatch' });
+  (order as any).status = 'In Transit';
+  (order as any).pickupAt = new Date();
+  if (typeof lat === 'number' && typeof lon === 'number') (order as any).pickupCoords = { lat, lon };
+  await order.save();
+  if ((order as any).cylinder?.id) {
+    await Cylinder.findOneAndUpdate({ supplierId: (order as any).supplierId, cylId: (order as any).cylinder.id }, { $set: { status: 'In Transit', owner: 'Agent', coords: (typeof lat==='number' && typeof lon==='number') ? { lat, lon } : undefined } });
+  }
+  return res.json({ ok: true });
+});
+
+// Agent deliver: verify OTP or customer QR, mark Delivered
+router.post('/:orderId/deliver', requireAuth, async (req: AuthRequest, res: Response) => {
+  if (req.role !== 'agent') return res.status(403).json({ message: 'Forbidden' });
+  const { orderId } = req.params;
+  const { otp, customerQrPayload, lat, lon } = req.body || {};
+  const order = await Order.findOne({ _id: orderId, assignedAgentId: req.userId });
+  if (!order) return res.status(404).json({ message: 'Order not found' });
+  if (order.status !== 'In Transit') return res.status(400).json({ message: 'Order not in transit' });
+  let ok = false;
+  if (otp && (order as any).otpHash && (order as any).otpExpiresAt && (order as any).otpExpiresAt > new Date()) {
+    const hash = crypto.createHash('sha256').update(String(otp)).digest('hex');
+    ok = hash === (order as any).otpHash;
+  }
+  // basic QR fallback: accept if matches order id and cyl id
+  if (!ok && customerQrPayload && typeof customerQrPayload === 'object') {
+    ok = customerQrPayload.orderId === String((order as any)._id) && customerQrPayload.cylId === (order as any).cylinder?.id;
+  }
+  if (!ok) return res.status(400).json({ message: 'Verification failed' });
+  (order as any).status = 'Delivered';
+  (order as any).deliveredAt = new Date();
+  if (typeof lat === 'number' && typeof lon === 'number') (order as any).deliveryCoords = { lat, lon };
+  // clear OTP
+  (order as any).otpHash = undefined;
+  (order as any).otpExpiresAt = undefined;
+  await order.save();
+  if ((order as any).cylinder?.id) {
+    await Cylinder.findOneAndUpdate({ supplierId: (order as any).supplierId, cylId: (order as any).cylinder.id }, { $set: { status: 'Delivered', owner: 'Customer', coords: (typeof lat==='number' && typeof lon==='number') ? { lat, lon } : undefined } });
+  }
   return res.json({ ok: true });
 });
 
