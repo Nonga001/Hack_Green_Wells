@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
-export type OrderStatus = 'Pending' | 'Approved' | 'Rejected' | 'In Transit' | 'Delivered';
+export type OrderStatus = 'Pending' | 'Approved' | 'Rejected' | 'Assigned' | 'In Transit' | 'Delivered';
 
 export interface OrderDocument extends Document {
   customerId: string;
@@ -11,6 +11,12 @@ export interface OrderDocument extends Document {
   notes?: string;
   status: OrderStatus;
   assignedAgentId?: string;
+  otpHash?: string;
+  otpExpiresAt?: Date | null;
+  pickupAt?: Date | null;
+  pickupCoords?: { lat: number; lon: number } | null;
+  deliveredAt?: Date | null;
+  deliveryCoords?: { lat: number; lon: number } | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,8 +42,14 @@ const OrderSchema = new Schema<OrderDocument>({
   delivery: { type: DeliveryInfo, required: true },
   total: { type: Number, required: true },
   notes: { type: String },
-  status: { type: String, enum: ['Pending', 'Approved', 'Rejected', 'In Transit', 'Delivered'], default: 'Pending', index: true },
+  status: { type: String, enum: ['Pending', 'Approved', 'Rejected', 'Assigned', 'In Transit', 'Delivered'], default: 'Pending', index: true },
   assignedAgentId: { type: String },
+  otpHash: { type: String },
+  otpExpiresAt: { type: Date },
+  pickupAt: { type: Date },
+  pickupCoords: { type: new Schema({ lat: Number, lon: Number }, { _id: false }) },
+  deliveredAt: { type: Date },
+  deliveryCoords: { type: new Schema({ lat: Number, lon: Number }, { _id: false }) },
 }, { timestamps: true });
 
 export const Order: Model<OrderDocument> =

@@ -24,6 +24,7 @@ export default function Orders() {
               <span className={`text-xs px-2 py-1 rounded-full ${
                 o.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' :
                 o.status === 'In Transit' ? 'bg-blue-100 text-blue-700' :
+                o.status === 'Assigned' ? 'bg-purple-100 text-purple-700' :
                 o.status === 'Approved' ? 'bg-teal-100 text-teal-700' :
                 o.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-700'
               }`}>{o.status}</span>
@@ -35,6 +36,9 @@ export default function Orders() {
                   setInvoice({ orderId: o._id, text });
                 } catch {}
               }} className="text-sm px-3 py-1.5 rounded-lg ring-1 ring-slate-200 hover:bg-slate-50">Invoice</button>
+              {['Assigned','In Transit'].includes(o.status) && (
+                <CustomerVerifyInline order={o} />
+              )}
             </div>
           </div>
         </Card>
@@ -64,6 +68,34 @@ export default function Orders() {
         </div>
       )}
     </div>
+  );
+}
+
+function CustomerVerifyInline({ order }: { order: any }) {
+  const [open, setOpen] = React.useState(false);
+  const [otp, setOtp] = React.useState<string | null>(null);
+  const [otpExpires, setOtpExpires] = React.useState<number | null>(null);
+  const payload = { orderId: order._id, cylId: order.cylinder?.id };
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(JSON.stringify(payload))}`;
+  return (
+    <>
+      <button onClick={()=> setOpen(v=>!v)} className="text-sm px-3 py-1.5 rounded-lg ring-1 ring-slate-200 hover:bg-slate-50">Show OTP/QR</button>
+      {open && (
+        <div className="flex items-center gap-2">
+          <img alt="Delivery QR" src={qrUrl} className="h-10 w-10 rounded-md border border-slate-200" />
+          <button onClick={async ()=>{
+            try {
+              const res = await fetch(`${API_URL}/orders/${order._id}/issue-otp`, { method:'POST', headers: { ...authHeaders() } as any });
+              const data = await res.json();
+              if (res.ok) { setOtp(data.otp); setOtpExpires(data.expiresInMinutes); }
+            } catch {}
+          }} className="text-xs px-2 py-1 rounded-lg ring-1 ring-slate-200 hover:bg-slate-50">Generate OTP</button>
+          {otp && (
+            <span className="text-xs font-mono bg-slate-100 px-2 py-1 rounded">{otp}{otpExpires?` (expires in ${otpExpires}m)`:''}</span>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 

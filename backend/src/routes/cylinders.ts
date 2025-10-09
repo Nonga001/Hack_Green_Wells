@@ -64,9 +64,9 @@ router.patch('/:cylId', requireAuth, async (req: AuthRequest, res: Response) => 
   const { cylId } = req.params;
   const doc = await Cylinder.findOne({ supplierId: req.userId, cylId });
   if (!doc) return res.status(404).json({ message: 'Cylinder not found' });
-  // Disallow edits when booked
-  if (doc.status === 'Booked') {
-    return res.status(400).json({ message: 'Booked cylinders cannot be edited' });
+  // Disallow edits when booked or delivered
+  if (doc.status === 'Booked' || doc.status === 'Delivered') {
+    return res.status(400).json({ message: 'This cylinder cannot be edited in its current status' });
   }
   const updates: any = {};
   if (typeof req.body.price === 'number') updates.price = req.body.price;
