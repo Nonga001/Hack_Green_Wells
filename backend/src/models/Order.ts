@@ -7,6 +7,7 @@ export interface OrderDocument extends Document {
   supplierId: string;
   cylinder: { id?: string; size: string; brand: string; price?: number };
   delivery: { date: string; time?: string; distanceKm?: number; fee?: number };
+  type?: 'order' | 'refill';
   total: number;
   notes?: string;
   status: OrderStatus;
@@ -40,6 +41,7 @@ const OrderSchema = new Schema<OrderDocument>({
   supplierId: { type: String, required: true, index: true },
   cylinder: { type: CylinderInfo, required: true },
   delivery: { type: DeliveryInfo, required: true },
+  type: { type: String, enum: ['order', 'refill'], default: 'order', index: true },
   total: { type: Number, required: true },
   notes: { type: String },
   status: { type: String, enum: ['Pending', 'Approved', 'Rejected', 'Assigned', 'In Transit', 'Delivered'], default: 'Pending', index: true },

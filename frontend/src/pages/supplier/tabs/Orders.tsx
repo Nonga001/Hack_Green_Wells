@@ -17,10 +17,11 @@ export default function Orders() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="text-sm font-medium text-slate-900">{o._id} • {o.cylinder?.size} • {o.cylinder?.brand} • {o.cylinder?.id || '-'}</div>
-              <div className="text-xs text-slate-600">{o.delivery?.date} • Price: KES {Number(o.cylinder?.price||0).toLocaleString()} • Total: KES {Number(o.total||0).toLocaleString()}</div>
+              <div className="text-xs text-slate-600">{o.delivery?.date} • {o.type==='refill' ? 'Refill' : 'Order'} • Price: KES {Number(o.cylinder?.price||0).toLocaleString()} • Total: KES {Number(o.total||0).toLocaleString()}</div>
               <div className="text-xs text-slate-600">Customer: {o.customer?.name || '-'} • {o.customer?.phone || '-'}</div>
             </div>
             <div className="flex items-center gap-2">
+              <span className={`text-xs px-2 py-1 rounded-full ${o.type==='refill' ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-700'}`}>{o.type==='refill' ? 'Refill' : 'Order'}</span>
               <span className={`text-xs px-2 py-1 rounded-full ${
                 o.status === 'Pending' ? 'bg-amber-100 text-amber-700' :
                 o.status === 'Approved' ? 'bg-blue-100 text-blue-700' :

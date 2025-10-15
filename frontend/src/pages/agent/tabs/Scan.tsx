@@ -39,7 +39,7 @@ export default function Scan() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <Card>
-        <h3 className="text-lg font-semibold text-slate-900">Pickup</h3>
+        <h3 className="text-lg font-semibold text-slate-900">Pickup <span className="ml-2 align-middle text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">Order / Refill</span></h3>
         {notice && (<div className={`mt-2 rounded-lg p-2 text-sm ${notice.type==='success'?'bg-emerald-50 border border-emerald-200 text-emerald-800':'bg-rose-50 border border-rose-200 text-rose-700'}`}>{notice.text}</div>)}
         <div className="mt-3 grid gap-2 text-sm">
           <div className="grid gap-2">
@@ -50,7 +50,7 @@ export default function Scan() {
             }}>
               <option value="">Select assigned order</option>
               {assigned.map((o:any)=> (
-                <option key={o._id} value={o._id}>{o._id} • {o.cylinder?.size} {o.cylinder?.brand} #{o.cylinder?.id || '-'}</option>
+                <option key={o._id} value={o._id}>{o._id} • {o.type==='refill' ? 'Refill' : 'Order'} • {o.cylinder?.size} {o.cylinder?.brand} #{o.cylinder?.id || '-'}</option>
               ))}
             </select>
             <input className="rounded-xl border border-slate-300 px-3 py-2" placeholder="Order ID" value={orderId} onChange={(e)=>setOrderId(e.target.value)} />
@@ -119,7 +119,8 @@ export default function Scan() {
               const { lat, lon } = await getCoords();
               try {
                 await api(`/orders/${orderId}/pickup`, { method:'POST', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ scanCylId: scannedCylId, lat, lon }) });
-                setNotice({ type:'success', text:'Picked up. Order is now In Transit.' });
+                const o = assigned.find((x:any)=> x._id===orderId);
+                setNotice({ type:'success', text: o?.type==='refill' ? 'Picked up at Customer. Order is now In Transit.' : 'Picked up. Order is now In Transit.' });
                 // Clear form and stop camera
                 setOrderId('');
                 setExpectedCylId('');

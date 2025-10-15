@@ -1,7 +1,37 @@
-export const API_URL: string = (import.meta as any).env.VITE_API_URL || 'http://localhost:4000';
+function getApiBase(): string {
+  // 1) Allow a global override set at runtime (e.g., from index.html or a script)
+  const globalOverride = (typeof window !== 'undefined' && (window as any).__API_URL__) as string | undefined;
+  if (globalOverride && typeof globalOverride === 'string') return globalOverride;
+
+  // 2) Allow a persisted override via localStorage for quick manual switching
+  try {
+    const stored = typeof window !== 'undefined' ? window.localStorage.getItem('api_url') : null;
+    if (stored && typeof stored === 'string') return stored;
+  } catch {}
+
+  // 3) Prefer same-origin in non-localhost environments
+  if (typeof window !== 'undefined') {
+    const isLocal = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+    if (!isLocal) return window.location.origin;
+  }
+
+  // 4) Fallback for local development
+  return 'http://localhost:4000';
+}
+
+export function setApiBase(url: string) {
+  // Persist an explicit API base override
+  try {
+    window.localStorage.setItem('api_url', url);
+  } catch {}
+}
+
+// Backward-compatible named export for existing imports
+export const API_URL: string = getApiBase();
 
 export async function api(path: string, options: RequestInit = {}): Promise<any> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const base = getApiBase();
+  const res = await fetch(`${base}${path}`, {
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
   });

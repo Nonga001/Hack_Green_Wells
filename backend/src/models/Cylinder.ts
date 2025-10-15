@@ -6,6 +6,7 @@ export interface CylinderDocument extends Document {
   size: string;
   brand: string;
   price?: number;
+  refillPrice?: number;
   manufactureDate?: string;
   condition?: 'New' | 'Used' | 'Damaged';
   status: 'Available' | 'In Transit' | 'Delivered' | 'Lost' | 'Damaged';
@@ -31,6 +32,7 @@ const CylinderSchema = new Schema<CylinderDocument>(
     size: { type: String, required: true },
     brand: { type: String, required: true },
     price: { type: Number },
+    refillPrice: { type: Number },
     manufactureDate: { type: String },
     condition: { type: String, enum: ['New', 'Used', 'Damaged'], default: 'New' },
     status: { type: String, enum: ['Available', 'Booked', 'In Transit', 'Delivered', 'Lost', 'Damaged'], default: 'Available' },
