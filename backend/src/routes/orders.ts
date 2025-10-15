@@ -10,24 +10,52 @@ const router = express.Router();
 // Customer creates order
 router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
   if (req.role !== 'customer') return res.status(403).json({ message: 'Forbidden' });
-  const { supplierId, cylinder, delivery, total, notes } = req.body || {};
+  const { supplierId, cylinder, delivery, total, notes, type } = req.body || {};
   if (!supplierId || !cylinder?.size || !cylinder?.brand || !delivery?.date || typeof total !== 'number') return res.status(400).json({ message: 'Missing fields' });
   const customer = await User.findById(req.userId);
   if (!customer) return res.status(404).json({ message: 'Customer not found' });
-  // If a specific cylinder id is provided, attempt to book it (transition from Available -> Booked)
+  let isRefill = String(type) === 'refill';
+  // If a specific cylinder id is provided
   if (cylinder?.id) {
-    const booked = await Cylinder.findOneAndUpdate(
-      { supplierId, cylId: cylinder.id, status: 'Available' },
-      { $set: { status: 'Booked' } },
-      { new: true }
-    );
-    if (!booked) return res.status(409).json({ message: 'Selected cylinder is no longer available' });
-    // If price wasn't included, inherit from cylinder
-    if (typeof cylinder.price !== 'number' && typeof (booked as any).price === 'number') {
-      cylinder.price = (booked as any).price;
+    if (isRefill) {
+      // Refill: do NOT change cylinder status; optionally inherit refillPrice
+      const cylDoc = await Cylinder.findOne({ supplierId, cylId: cylinder.id }).lean();
+      if (!cylDoc) return res.status(404).json({ message: 'Cylinder not found for refill' });
+      if (typeof cylinder.price !== 'number') {
+        const rp = (cylDoc as any).refillPrice;
+        if (typeof rp === 'number') cylinder.price = rp;
+      }
+    } else {
+      // Normal order: attempt to book (Available -> Booked)
+      const booked = await Cylinder.findOneAndUpdate(
+        { supplierId, cylId: cylinder.id, status: 'Available' },
+        { $set: { status: 'Booked' } },
+        { new: true }
+      );
+      if (!booked) {
+        // Fallback: allow refill if the customer owns a delivered cylinder with this id
+        const cylDoc = await Cylinder.findOne({ supplierId, cylId: cylinder.id }).lean();
+        if (cylDoc && (cylDoc as any).status === 'Delivered') {
+          const owned = await Order.findOne({ customerId: req.userId, supplierId, status: 'Delivered', 'cylinder.id': cylinder.id }).sort({ deliveredAt: -1 }).lean();
+          if (owned) {
+            const rp = (cylDoc as any).refillPrice;
+            if (typeof cylinder.price !== 'number' && typeof rp === 'number') cylinder.price = rp;
+            // treat as refill, continue without changing cylinder status
+            isRefill = true;
+          } else {
+            return res.status(409).json({ message: 'Selected cylinder is no longer available' });
+          }
+        } else {
+          return res.status(409).json({ message: 'Selected cylinder is no longer available' });
+        }
+      }
+      // If price wasn't included, inherit from cylinder
+      if (typeof cylinder.price !== 'number' && typeof (booked as any).price === 'number') {
+        cylinder.price = (booked as any).price;
+      }
     }
   }
-  const doc = await Order.create({ customerId: String(customer._id), supplierId, cylinder, delivery, total, notes });
+  const doc = await Order.create({ customerId: String(customer._id), supplierId, cylinder, delivery, type: isRefill ? 'refill' : 'order', total, notes });
   return res.status(201).json({ id: String(doc._id) });
 });
 
@@ -225,10 +253,13 @@ router.get('/:orderId/invoice', requireAuth, async (req: AuthRequest, res: Respo
   const time = (doc as any).createdAt ? new Date((doc as any).createdAt).toISOString() : new Date().toISOString();
   const cylId = (doc as any).cylinder?.id || '-';
   const total = Number((doc as any).total || 0);
+  const deliveredAt = (doc as any).deliveredAt ? new Date((doc as any).deliveredAt).toISOString() : null;
   const lines = [
-    `Time: ${time}`,
+    `Order Placed: ${time}`,
+    `Type: ${String((doc as any).type || 'order').toUpperCase()}`,
     `Cylinder ID: ${cylId}`,
     `Total Price: KES ${total.toLocaleString()}`,
+    deliveredAt ? `Delivered On: ${deliveredAt}` : `Delivered On: -`,
   ];
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   return res.send(lines.join('\n'));

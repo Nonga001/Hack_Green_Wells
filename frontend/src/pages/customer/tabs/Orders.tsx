@@ -17,10 +17,11 @@ export default function Orders() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="text-sm font-medium text-slate-900">{o._id} • {o.cylinder?.size} • {o.cylinder?.brand}</div>
-              <div className="text-xs text-slate-600">{o.delivery?.date} • Cylinder: {o.cylinder?.id || '-'} • Price: KES {Number(o.cylinder?.price||0).toLocaleString()} • Total: KES {Number(o.total||0).toLocaleString()}</div>
+              <div className="text-xs text-slate-600">{o.delivery?.date} • {o.type==='refill' ? 'Refill' : 'Order'} • Cylinder: {o.cylinder?.id || '-'} • Price: KES {Number(o.cylinder?.price||0).toLocaleString()} • Total: KES {Number(o.total||0).toLocaleString()}</div>
               <div className="text-xs text-slate-600">Supplier: {o.supplier?.name || '-'} • {o.supplier?.phone || '-'}</div>
             </div>
             <div className="flex items-center gap-2">
+              <span className={`text-xs px-2 py-1 rounded-full ${o.type==='refill' ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-700'}`}>{o.type==='refill' ? 'Refill' : 'Order'}</span>
               <span className={`text-xs px-2 py-1 rounded-full ${
                 o.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' :
                 o.status === 'In Transit' ? 'bg-blue-100 text-blue-700' :
@@ -28,7 +29,7 @@ export default function Orders() {
                 o.status === 'Approved' ? 'bg-teal-100 text-teal-700' :
                 o.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-700'
               }`}>{o.status}</span>
-              <button disabled={o.status!=='Delivered' && o.status!=='Rejected'} className={`text-sm px-3 py-1.5 rounded-lg ring-1 ring-slate-200 ${ (o.status==='Delivered' || o.status==='Rejected') ? 'hover:bg-slate-50':'opacity-50 cursor-not-allowed'}`}>Reorder</button>
+              <button disabled={o.status!=='Rejected'} className={`text-sm px-3 py-1.5 rounded-lg ring-1 ring-slate-200 ${ (o.status==='Rejected') ? 'hover:bg-slate-50':'opacity-50 cursor-not-allowed'}`}>Reorder</button>
               <button onClick={async ()=>{
                 try {
                   const res = await fetch(`${API_URL}/orders/${o._id}/invoice`, { headers: { ...authHeaders() } as any });

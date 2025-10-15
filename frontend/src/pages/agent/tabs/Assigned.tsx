@@ -22,6 +22,7 @@ export default function Assigned() {
             <div className="text-slate-600">Cylinder: {o.cylinder?.size} {o.cylinder?.brand} {o.cylinder?.id ? `#${o.cylinder.id}` : ''}</div>
             <div className="text-slate-600">When: {o.delivery?.date} {o.delivery?.time || ''}</div>
             <div className="flex items-center gap-2">
+              <span className={`px-2 py-1 rounded-full ${o.type==='refill' ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-700'}`}>{o.type==='refill' ? 'Refill' : 'Order'}</span>
               <span className={`px-2 py-1 rounded-full ${o.status === 'Assigned' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{o.status}</span>
               {o.status === 'Assigned' && (
                 <>
@@ -30,7 +31,7 @@ export default function Assigned() {
                     try { 
                       await api(`/orders/${o._id}/agent-response`, { method:'POST', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ accept: true }) }); 
                       setAcceptedIds(prev=> new Set(Array.from(prev).concat(o._id)));
-                      setNotice({ type:'success', text:'Assignment accepted. Proceed to Pickup to scan the cylinder.'});
+                      setNotice({ type:'success', text: o.type==='refill' ? 'Assignment accepted. Start Pickup at Customer to scan the cylinder.' : 'Assignment accepted. Proceed to Pickup to scan the cylinder.'});
                     } catch (e:any) { setNotice({ type:'error', text: e?.message || 'Failed to accept' }); } 
                   }} className={`px-3 py-1.5 rounded-lg ${acceptedIds.has(o._id)?'bg-slate-300 text-slate-600 cursor-not-allowed':'bg-emerald-600 text-white hover:bg-emerald-700'}`}>{acceptedIds.has(o._id)? 'Accepted' : 'Accept'}</button>
                   <button onClick={async ()=>{ 

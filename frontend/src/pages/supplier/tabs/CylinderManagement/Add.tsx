@@ -14,6 +14,7 @@ export default function AddCylinder({ onAdd }: { onAdd: (row: CylinderRow) => vo
   const [manufactureDate, setManufactureDate] = React.useState('');
   const [condition, setCondition] = React.useState<'New' | 'Used' | 'Damaged'>('New');
   const [price, setPrice] = React.useState<string>('');
+  const [refillPrice, setRefillPrice] = React.useState<string>('');
   const [cylId, setCylId] = React.useState(generateCylinderId());
   const [status] = React.useState('Available');
   const [location, setLocation] = React.useState<string>('Business Address');
@@ -42,6 +43,8 @@ export default function AddCylinder({ onAdd }: { onAdd: (row: CylinderRow) => vo
     setBrand('Oryx');
     setManufactureDate('');
     setCondition('New');
+    setPrice('');
+    setRefillPrice('');
     setCylId(generateCylinderId());
   }
 
@@ -105,8 +108,13 @@ export default function AddCylinder({ onAdd }: { onAdd: (row: CylinderRow) => vo
         };
         try {
           const numericPrice = price === '' ? undefined : Number(price);
+          const numericRefillPrice = refillPrice === '' ? undefined : Number(refillPrice);
           if (numericPrice !== undefined && (isNaN(numericPrice) || numericPrice < 0)) {
             setNotice({ type:'error', text:'Please enter a valid non-negative price.'});
+            return;
+          }
+          if (numericRefillPrice !== undefined && (isNaN(numericRefillPrice) || numericRefillPrice < 0)) {
+            setNotice({ type:'error', text:'Please enter a valid non-negative refill price.'});
             return;
           }
           await api('/cylinders', { method:'POST', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({
@@ -114,6 +122,7 @@ export default function AddCylinder({ onAdd }: { onAdd: (row: CylinderRow) => vo
             size,
             brand,
             price: numericPrice,
+            refillPrice: numericRefillPrice,
             manufactureDate,
             condition,
             status: 'Available',
@@ -167,6 +176,9 @@ export default function AddCylinder({ onAdd }: { onAdd: (row: CylinderRow) => vo
           </div>
           <label className="text-sm font-medium text-slate-700">Price (KES)
             <input type="number" min={0} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" value={price} onChange={(e)=>setPrice(e.target.value)} />
+          </label>
+          <label className="text-sm font-medium text-slate-700">Refill Price (KES)
+            <input type="number" min={0} className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2" value={refillPrice} onChange={(e)=>setRefillPrice(e.target.value)} />
           </label>
           <div>
             <div className="text-xs text-slate-500">Initial Location</div>

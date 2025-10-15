@@ -114,8 +114,25 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
                       }}
                     >Save Changes</button>
                   </div>
-                  {(((modal.row as any).status==='Booked') || ((modal.row as any).status==='Delivered')) && (
-                    <div className="text-xs text-slate-500">Cylinders that are Booked or Delivered cannot be edited.</div>
+                  <div className="flex items-center gap-2">Refill Price (KES)
+                    <input id="refill-price-input" disabled={(modal.row as any).status==='Booked'} className="ml-2 rounded-xl border border-slate-300 px-2 py-1 w-32 disabled:bg-slate-100" type="number" min={0} placeholder="e.g. 1200" defaultValue={(modal.row as any).refillPrice ?? ''} />
+                    <button
+                      disabled={(modal.row as any).status==='Booked'}
+                      className="rounded-lg px-3 py-1.5 ring-1 ring-slate-200 hover:bg-slate-50 disabled:bg-slate-100"
+                      onClick={async ()=>{
+                        const input = document.getElementById('refill-price-input') as HTMLInputElement | null;
+                        if (!input) return;
+                        const val = Number(input.value);
+                        if (isNaN(val) || val < 0) return;
+                        try { await api(`/cylinders/${modal.row.id}`, { method:'PATCH', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ refillPrice: val })}); (modal.row as any).refillPrice = val; } catch {}
+                      }}
+                    >Save Changes</button>
+                  </div>
+                  {((modal.row as any).status==='Booked') && (
+                    <div className="text-xs text-slate-500">Booked cylinders cannot be edited.</div>
+                  )}
+                  {((modal.row as any).status==='Delivered') && (
+                    <div className="text-xs text-slate-500">Delivered cylinders: only refill price is editable.</div>
                   )}
                 </div>
               )}

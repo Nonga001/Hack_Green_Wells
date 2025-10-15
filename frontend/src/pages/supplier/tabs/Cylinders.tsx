@@ -35,7 +35,7 @@ export default function Cylinders() {
           brand: d.brand,
           price: d.price,
           status: d.status || 'Available',
-          owner: d.owner || 'Supplier',
+          owner: (d.ownerName && (d.owner === 'Customer' || d.owner === 'Agent')) ? `${d.owner} (${d.ownerName})` : (d.owner || 'Supplier'),
           location: d.locationText || '',
           added: (d.createdAt || '').slice(0,10),
           coords: d.coords || null,
