@@ -6,9 +6,13 @@ export default function Overview() {
   const mockSummary = { predictionDays: 5, points: 320, tier: 'Silver' };
   const [orders, setOrders] = React.useState<any[]>([]);
   React.useEffect(() => {
-    (async () => {
-      try { const docs = await api('/orders/customer', { headers: { ...authHeaders() } }); setOrders(docs || []); } catch {}
-    })();
+    let alive = true;
+    async function fetchOnce() {
+      try { const docs = await api('/orders/customer', { headers: { ...authHeaders() } }); if (alive) setOrders(docs || []); } catch {}
+    }
+    fetchOnce();
+    const id = setInterval(fetchOnce, 5000);
+    return () => { alive = false; clearInterval(id); };
   }, []);
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -36,16 +40,24 @@ export default function Overview() {
       <Card className="lg:col-span-2">
         <h3 className="text-lg font-semibold text-slate-900">Active Orders</h3>
         <div className="mt-3 grid md:grid-cols-2 gap-3">
-          {orders.filter((o:any)=> o.status==='Pending' || o.status==='Approved' || o.status==='In Transit').map((o:any) => (
+          {orders.filter((o:any)=> ['Pending','Approved','Assigned','In Transit','At Supplier'].includes(o.status)).map((o:any) => (
             <div key={o._id} className="rounded-lg border border-slate-200 p-3 flex items-center justify-between">
               <div>
-                <div className="text-sm font-medium text-slate-900">{o._id} • {o.cylinder?.size} • {o.cylinder?.brand}</div>
+                <div className="text-sm font-medium text-slate-900">{o._id} • {o.cylinder?.size} • {o.cylinder?.brand} • {o.type==='refill' ? 'Refill' : 'Order'}</div>
                 <div className="text-xs text-slate-600">{o.delivery?.date} • Supplier: {o.supplier?.name || '-'} • {o.supplier?.phone || '-'}</div>
+                {o.destination && (
+                  <div className="text-xs text-slate-600">Destination: {[o.destination?.addressLine, o.destination?.city, o.destination?.postalCode].filter(Boolean).join(', ') || '-'}</div>
+                )}
+                {o.agent && (
+                  <div className="text-xs text-slate-600">Agent: {o.agent?.name || '-'} • {o.agent?.phone || '-'}</div>
+                )}
               </div>
               <span className={`text-xs px-2 py-1 rounded-full ${
                 o.status === 'Delivered' ? 'bg-emerald-100 text-emerald-700' :
                 o.status === 'In Transit' ? 'bg-blue-100 text-blue-700' :
                 o.status === 'Approved' ? 'bg-teal-100 text-teal-700' :
+                o.status === 'At Supplier' ? 'bg-orange-100 text-orange-700' :
+                o.status === 'Assigned' ? 'bg-purple-100 text-purple-700' :
                 o.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-700'
               }`}>{o.status}</span>
             </div>

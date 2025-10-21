@@ -15,6 +15,17 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
   const customer = await User.findById(req.userId);
   if (!customer) return res.status(404).json({ message: 'Customer not found' });
   let isRefill = String(type) === 'refill';
+  // Prevent duplicate active refill orders for the same cylinder by the same customer
+  if (isRefill && cylinder?.id) {
+    const existing = await Order.findOne({
+      customerId: req.userId,
+      supplierId,
+      type: 'refill',
+      'cylinder.id': cylinder.id,
+      status: { $in: ['Pending', 'Approved', 'Assigned', 'In Transit'] },
+    }).lean();
+    if (existing) return res.status(409).json({ message: 'An active refill for this cylinder already exists' });
+  }
   // If a specific cylinder id is provided
   if (cylinder?.id) {
     if (isRefill) {
@@ -81,14 +92,32 @@ router.get('/customer', requireAuth, async (req: AuthRequest, res: Response) => 
   if (req.role !== 'customer') return res.status(403).json({ message: 'Forbidden' });
   const docs = await Order.find({ customerId: req.userId }).sort({ createdAt: -1 }).lean();
   const supplierIds = Array.from(new Set((docs || []).map(d => String(d.supplierId))));
-  const suppliers = await User.find({ _id: { $in: supplierIds } }).select('businessName phoneNumber').lean();
+  const agentIds = Array.from(new Set((docs || [])
+    .map(d => String((d as any).assignedAgentId || ''))
+    .filter(Boolean)));
+  const [suppliers, agents, me] = await Promise.all([
+    supplierIds.length ? User.find({ _id: { $in: supplierIds } }).select('businessName phoneNumber').lean() : Promise.resolve([]),
+    agentIds.length ? User.find({ _id: { $in: agentIds } }).select('fullName phoneNumber').lean() : Promise.resolve([]),
+    User.findById(req.userId).select('deliveryAddress').lean(),
+  ]);
   const supplierById = new Map(suppliers.map((u: any) => [String(u._id), u]));
+  const agentById = new Map(agents.map((u: any) => [String(u._id), u]));
+  const destination = me?.deliveryAddress ? {
+    addressLine: (me as any).deliveryAddress?.addressLine || null,
+    city: (me as any).deliveryAddress?.city || null,
+    postalCode: (me as any).deliveryAddress?.postalCode || null,
+  } : null;
   const enriched = docs.map((d: any) => ({
     ...d,
     supplier: {
       name: supplierById.get(String(d.supplierId))?.businessName || null,
       phone: supplierById.get(String(d.supplierId))?.phoneNumber || null,
     },
+    agent: (d as any).assignedAgentId ? {
+      name: agentById.get(String((d as any).assignedAgentId))?.fullName || null,
+      phone: agentById.get(String((d as any).assignedAgentId))?.phoneNumber || null,
+    } : null,
+    destination,
   }));
   return res.json(enriched);
 });
@@ -193,11 +222,19 @@ router.post('/:orderId/issue-otp', requireAuth, async (req: AuthRequest, res: Re
 router.post('/:orderId/pickup', requireAuth, async (req: AuthRequest, res: Response) => {
   if (req.role !== 'agent') return res.status(403).json({ message: 'Forbidden' });
   const { orderId } = req.params;
-  const { scanCylId, lat, lon } = req.body || {};
+  const { scanCylId, otp, lat, lon } = req.body || {};
   const order = await Order.findOne({ _id: orderId, assignedAgentId: req.userId });
   if (!order) return res.status(404).json({ message: 'Order not found' });
   if (order.status !== 'Assigned') return res.status(400).json({ message: 'Order not ready for pickup' });
-  if (!scanCylId || scanCylId !== (order as any).cylinder?.id) return res.status(400).json({ message: 'Cylinder ID mismatch' });
+  // Allow either cylinder scan match, or for refill orders allow OTP verification (for LAN without camera)
+  let verified = false;
+  if (scanCylId && scanCylId === (order as any).cylinder?.id) {
+    verified = true;
+  } else if ((order as any).type === 'refill' && otp && (order as any).otpHash && (order as any).otpExpiresAt && (order as any).otpExpiresAt > new Date()) {
+    const hash = crypto.createHash('sha256').update(String(otp)).digest('hex');
+    verified = hash === (order as any).otpHash;
+  }
+  if (!verified) return res.status(400).json({ message: 'Pickup verification failed' });
   (order as any).status = 'In Transit';
   (order as any).pickupAt = new Date();
   if (typeof lat === 'number' && typeof lon === 'number') (order as any).pickupCoords = { lat, lon };
@@ -205,6 +242,36 @@ router.post('/:orderId/pickup', requireAuth, async (req: AuthRequest, res: Respo
   if ((order as any).cylinder?.id) {
     await Cylinder.findOneAndUpdate({ supplierId: (order as any).supplierId, cylId: (order as any).cylinder.id }, { $set: { status: 'In Transit', owner: 'Agent', coords: (typeof lat==='number' && typeof lon==='number') ? { lat, lon } : undefined } });
   }
+  return res.json({ ok: true });
+});
+
+// Agent arrives at supplier for refill handover (refill only)
+router.post('/:orderId/arrive-supplier', requireAuth, async (req: AuthRequest, res: Response) => {
+  if (req.role !== 'agent') return res.status(403).json({ message: 'Forbidden' });
+  const { orderId } = req.params;
+  const { lat, lon } = req.body || {};
+  const order = await Order.findOne({ _id: orderId, assignedAgentId: req.userId });
+  if (!order) return res.status(404).json({ message: 'Order not found' });
+  if ((order as any).type !== 'refill') return res.status(400).json({ message: 'Only refill orders can arrive at supplier' });
+  if ((order as any).status !== 'In Transit') return res.status(400).json({ message: 'Order must be In Transit to arrive at supplier' });
+  (order as any).status = 'At Supplier';
+  if (typeof lat === 'number' && typeof lon === 'number') (order as any).deliveryCoords = { lat, lon };
+  await order.save();
+  return res.json({ ok: true });
+});
+
+// Agent picks up refilled cylinder from supplier and heads back to customer
+router.post('/:orderId/pickup-supplier', requireAuth, async (req: AuthRequest, res: Response) => {
+  if (req.role !== 'agent') return res.status(403).json({ message: 'Forbidden' });
+  const { orderId } = req.params;
+  const { lat, lon } = req.body || {};
+  const order = await Order.findOne({ _id: orderId, assignedAgentId: req.userId });
+  if (!order) return res.status(404).json({ message: 'Order not found' });
+  if ((order as any).type !== 'refill') return res.status(400).json({ message: 'Only refill orders can pickup from supplier' });
+  if ((order as any).status !== 'At Supplier') return res.status(400).json({ message: 'Order must be At Supplier to pickup' });
+  (order as any).status = 'In Transit';
+  if (typeof lat === 'number' && typeof lon === 'number') (order as any).pickupCoords = { lat, lon };
+  await order.save();
   return res.json({ ok: true });
 });
 

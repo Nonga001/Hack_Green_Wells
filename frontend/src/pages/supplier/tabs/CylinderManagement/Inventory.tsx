@@ -30,6 +30,7 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
               <th className="py-2 pr-4">Brand</th>
               <th className="py-2 pr-4">Price</th>
               <th className="py-2 pr-4">Status</th>
+              <th className="py-2 pr-4">Type</th>
               <th className="py-2 pr-4">Current Owner</th>
               <th className="py-2 pr-4">Last Scanned Location</th>
               <th className="py-2 pr-4">Date Added</th>
@@ -44,8 +45,17 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
                 <td className="py-2 pr-4">{r.brand}</td>
                 <td className="py-2 pr-4">{typeof (r as any).price === 'number' ? `KES ${(r as any).price}` : '-'}</td>
                 <td className="py-2 pr-4">{r.status}</td>
+                <td className="py-2 pr-4">
+                  {((r as any).currentActiveType) ? (
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${((r as any).currentActiveType)==='refill' ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-700'}`}>
+                      {((r as any).currentActiveType)==='refill' ? 'Refill' : 'Order'}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-500">—</span>
+                  )}
+                </td>
                 <td className="py-2 pr-4">{r.owner}</td>
-                <td className="py-2 pr-4">{r.location}</td>
+                <td className="py-2 pr-4">{(r as any).lastAddressText || r.location}</td>
                 <td className="py-2 pr-4">{r.added}</td>
                 <td className="py-2 pr-4 flex gap-2">
                   <button onClick={()=>setModal({ type:'map', row:r })} className="px-2 py-1 rounded-lg ring-1 ring-slate-200 hover:bg-slate-50">View Map</button>
@@ -101,9 +111,9 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
                     </select>
                   </div>
                   <div className="flex items-center gap-2">Price (KES)
-                    <input id="price-input" disabled={(modal.row as any).status==='Booked' || (modal.row as any).status==='Delivered'} className="ml-2 rounded-xl border border-slate-300 px-2 py-1 w-32 disabled:bg-slate-100" type="number" min={0} placeholder="e.g. 2450" defaultValue={(modal.row as any).price ?? ''} />
+                    <input id="price-input" disabled={(modal.row as any).status==='Booked' || (modal.row as any).status==='Delivered' || (modal.row as any).status==='In Transit'} className="ml-2 rounded-xl border border-slate-300 px-2 py-1 w-32 disabled:bg-slate-100" type="number" min={0} placeholder="e.g. 2450" defaultValue={(modal.row as any).price ?? ''} />
                     <button
-                      disabled={(modal.row as any).status==='Booked' || (modal.row as any).status==='Delivered'}
+                      disabled={(modal.row as any).status==='Booked' || (modal.row as any).status==='Delivered' || (modal.row as any).status==='In Transit'}
                       className="rounded-lg px-3 py-1.5 ring-1 ring-slate-200 hover:bg-slate-50 disabled:bg-slate-100"
                       onClick={async ()=>{
                         const input = document.getElementById('price-input') as HTMLInputElement | null;
@@ -115,9 +125,9 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
                     >Save Changes</button>
                   </div>
                   <div className="flex items-center gap-2">Refill Price (KES)
-                    <input id="refill-price-input" disabled={(modal.row as any).status==='Booked'} className="ml-2 rounded-xl border border-slate-300 px-2 py-1 w-32 disabled:bg-slate-100" type="number" min={0} placeholder="e.g. 1200" defaultValue={(modal.row as any).refillPrice ?? ''} />
+                    <input id="refill-price-input" disabled={(modal.row as any).status==='Booked' || (modal.row as any).status==='In Transit'} className="ml-2 rounded-xl border border-slate-300 px-2 py-1 w-32 disabled:bg-slate-100" type="number" min={0} placeholder="e.g. 1200" defaultValue={(modal.row as any).refillPrice ?? ''} />
                     <button
-                      disabled={(modal.row as any).status==='Booked'}
+                      disabled={(modal.row as any).status==='Booked' || (modal.row as any).status==='In Transit'}
                       className="rounded-lg px-3 py-1.5 ring-1 ring-slate-200 hover:bg-slate-50 disabled:bg-slate-100"
                       onClick={async ()=>{
                         const input = document.getElementById('refill-price-input') as HTMLInputElement | null;
@@ -130,6 +140,9 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
                   </div>
                   {((modal.row as any).status==='Booked') && (
                     <div className="text-xs text-slate-500">Booked cylinders cannot be edited.</div>
+                  )}
+                  {((modal.row as any).status==='In Transit') && (
+                    <div className="text-xs text-slate-500">In Transit cylinders cannot be price-edited.</div>
                   )}
                   {((modal.row as any).status==='Delivered') && (
                     <div className="text-xs text-slate-500">Delivered cylinders: only refill price is editable.</div>

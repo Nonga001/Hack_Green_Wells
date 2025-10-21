@@ -6,9 +6,13 @@ export default function Orders() {
   const [orders, setOrders] = React.useState<any[]>([]);
   const [assignModal, setAssignModal] = React.useState<null | { orderId: string; agents: any[] }>(null);
   React.useEffect(() => {
-    (async () => {
-      try { const docs = await api('/orders/supplier', { headers: { ...authHeaders() } }); setOrders(docs || []); } catch {}
-    })();
+    let alive = true;
+    async function fetchOnce() {
+      try { const docs = await api('/orders/supplier', { headers: { ...authHeaders() } }); if (alive) setOrders(docs || []); } catch {}
+    }
+    fetchOnce();
+    const id = setInterval(fetchOnce, 5000);
+    return () => { alive = false; clearInterval(id); };
   }, []);
   return (
     <div className="space-y-3">

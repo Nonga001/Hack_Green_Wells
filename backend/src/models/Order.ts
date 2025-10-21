@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
-export type OrderStatus = 'Pending' | 'Approved' | 'Rejected' | 'Assigned' | 'In Transit' | 'Delivered';
+export type OrderStatus = 'Pending' | 'Approved' | 'Rejected' | 'Assigned' | 'In Transit' | 'At Supplier' | 'Delivered';
 
 export interface OrderDocument extends Document {
   customerId: string;
@@ -44,7 +44,7 @@ const OrderSchema = new Schema<OrderDocument>({
   type: { type: String, enum: ['order', 'refill'], default: 'order', index: true },
   total: { type: Number, required: true },
   notes: { type: String },
-  status: { type: String, enum: ['Pending', 'Approved', 'Rejected', 'Assigned', 'In Transit', 'Delivered'], default: 'Pending', index: true },
+  status: { type: String, enum: ['Pending', 'Approved', 'Rejected', 'Assigned', 'In Transit', 'At Supplier', 'Delivered'], default: 'Pending', index: true },
   assignedAgentId: { type: String },
   otpHash: { type: String },
   otpExpiresAt: { type: Date },
