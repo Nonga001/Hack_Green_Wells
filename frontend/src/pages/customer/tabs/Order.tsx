@@ -351,7 +351,12 @@ function RefillTab() {
       setRefillPayment('M-Pesa');
       setRefillNotes('');
     } catch (e: any) {
-      setRefillNotice({ type: 'error', text: e?.message || 'Failed to place refill order.' });
+      const msg = String(e?.message || '')
+      if (msg.includes('active refill')) {
+        setRefillNotice({ type: 'error', text: 'You already have an active refill for this cylinder. Please wait for it to complete.' });
+      } else {
+        setRefillNotice({ type: 'error', text: 'Failed to place refill order.' });
+      }
     }
   }
 

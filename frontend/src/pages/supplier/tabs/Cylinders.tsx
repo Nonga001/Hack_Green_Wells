@@ -14,6 +14,9 @@ export type CylinderRow = {
   location: string;
   added: string;
   coords?: { lat: number; lon: number } | null;
+  lastType?: 'order' | 'refill';
+  currentActiveType?: 'order' | 'refill';
+  lastAddressText?: string | null;
 };
 
 export default function Cylinders() {
@@ -39,6 +42,9 @@ export default function Cylinders() {
           location: d.locationText || '',
           added: (d.createdAt || '').slice(0,10),
           coords: d.coords || null,
+          lastType: d.lastType === 'refill' ? 'refill' : 'order',
+          currentActiveType: d.currentActiveType === 'refill' ? 'refill' : (d.currentActiveType === 'order' ? 'order' : undefined),
+          lastAddressText: d.lastAddressText || '',
         }));
         setRows(mapped);
       } catch {

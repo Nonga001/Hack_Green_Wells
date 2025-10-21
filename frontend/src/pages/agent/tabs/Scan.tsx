@@ -6,7 +6,9 @@ export default function Scan() {
   const [orderId, setOrderId] = React.useState('');
   const [expectedCylId, setExpectedCylId] = React.useState('');
   const [scannedCylId, setScannedCylId] = React.useState('');
-  const [otp, setOtp] = React.useState('');
+  const [otp, setOtp] = React.useState(''); // Delivery OTP
+  const [pickupOtp, setPickupOtp] = React.useState(''); // Pickup OTP (refill)
+  const [pickupMode, setPickupMode] = React.useState<'order' | 'refill'>('order');
   const [notice, setNotice] = React.useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const pickupVideoRef = React.useRef<HTMLVideoElement | null>(null);
   const deliverVideoRef = React.useRef<HTMLVideoElement | null>(null);
@@ -47,6 +49,7 @@ export default function Scan() {
               const id = e.target.value; setOrderId(id);
               const o = assigned.find((x:any)=> x._id===id);
               setExpectedCylId(o?.cylinder?.id || '');
+              setPickupMode(o?.type==='refill' ? 'refill' : 'order');
             }}>
               <option value="">Select assigned order</option>
               {assigned.map((o:any)=> (
@@ -55,6 +58,16 @@ export default function Scan() {
             </select>
             <input className="rounded-xl border border-slate-300 px-3 py-2" placeholder="Order ID" value={orderId} onChange={(e)=>setOrderId(e.target.value)} />
             <input className="rounded-xl border border-slate-300 px-3 py-2" placeholder="Expected Cylinder ID (from order)" value={expectedCylId} onChange={(e)=>setExpectedCylId(e.target.value)} />
+            <div className="flex items-center gap-3 text-xs text-slate-700">
+              <label className="inline-flex items-center gap-1">
+                <input type="radio" name="pickup-type" checked={pickupMode==='order'} onChange={()=>setPickupMode('order')} />
+                <span>Order (scan cylinder)</span>
+              </label>
+              <label className="inline-flex items-center gap-1">
+                <input type="radio" name="pickup-type" checked={pickupMode==='refill'} onChange={()=>setPickupMode('refill')} />
+                <span>Refill (OTP)</span>
+              </label>
+            </div>
           </div>
           <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-slate-600">
             <div className="mb-2 text-xs text-slate-500">Camera Scanner</div>
@@ -65,7 +78,7 @@ export default function Scan() {
               </div>
             </div>
             <div className="mt-2 flex gap-2">
-              <button onClick={async ()=>{
+              <button disabled={pickupMode!=='order'} onClick={async ()=>{
                 try {
                   if (pickupStream) return; // already running
                   const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
@@ -97,8 +110,8 @@ export default function Scan() {
                     stream.getTracks().forEach(t=> t.addEventListener('ended', stop));
                   }
                 } catch {}
-              }} className="rounded-lg ring-1 ring-slate-200 px-3 py-1.5 hover:bg-slate-50">Start Camera</button>
-              <button onClick={()=>{
+              }} className={`rounded-lg ring-1 ring-slate-200 px-3 py-1.5 ${pickupMode==='order'?'hover:bg-slate-50':'opacity-50 cursor-not-allowed'}`}>Start Camera</button>
+              <button disabled={pickupMode!=='order'} onClick={()=>{
                 if (pickupVideoRef.current) {
                   pickupVideoRef.current.pause();
                   pickupVideoRef.current.srcObject = null;
@@ -107,9 +120,10 @@ export default function Scan() {
                   pickupStream.getTracks().forEach(t=>t.stop());
                   setPickupStream(null);
                 }
-              }} className="rounded-lg ring-1 ring-slate-200 px-3 py-1.5 hover:bg-slate-50">Stop</button>
+              }} className={`rounded-lg ring-1 ring-slate-200 px-3 py-1.5 ${pickupMode==='order'?'hover:bg-slate-50':'opacity-50 cursor-not-allowed'}`}>Stop</button>
             </div>
           </div>
+          {pickupMode==='order' && (
           <div className="flex items-center gap-2">
             <input className="flex-1 rounded-xl border border-slate-300 px-3 py-2" placeholder="Scanned Cylinder ID" value={scannedCylId} onChange={(e)=>setScannedCylId(e.target.value)} />
             <button onClick={async ()=>{
@@ -138,6 +152,35 @@ export default function Scan() {
               }
             }} className="rounded-xl bg-slate-900 px-4 py-2 text-white hover:bg-slate-800">Confirm Pickup</button>
           </div>
+          )}
+          {pickupMode==='refill' && (
+          <div className="flex items-center gap-2">
+            <input className="flex-1 rounded-xl border border-slate-300 px-3 py-2" placeholder="OTP (6 digits) for Pickup" value={pickupOtp} onChange={(e)=>setPickupOtp(e.target.value.replace(/[^0-9]/g,''))} />
+            <button onClick={async ()=>{
+              setNotice(null);
+              if (!orderId) { setNotice({ type:'error', text:'Provide order id' }); return; }
+              if (!pickupOtp || pickupOtp.length !== 6) { setNotice({ type:'error', text:'Enter 6-digit OTP (refill pickup)' }); return; }
+              const { lat, lon } = await getCoords();
+              try {
+                await api(`/orders/${orderId}/pickup`, { method:'POST', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ otp: pickupOtp, lat, lon }) });
+                setNotice({ type:'success', text: 'Pickup confirmed via OTP. Order is now In Transit.' });
+                setPickupOtp('');
+                setOrderId('');
+                setExpectedCylId('');
+                if (pickupVideoRef.current) {
+                  pickupVideoRef.current.pause();
+                  pickupVideoRef.current.srcObject = null;
+                }
+                if (pickupStream) {
+                  pickupStream.getTracks().forEach(t=>t.stop());
+                  setPickupStream(null);
+                }
+              } catch (e:any) {
+                setNotice({ type:'error', text: e?.message || 'Pickup via OTP failed' });
+              }
+            }} className="rounded-xl bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700">Confirm Pickup via OTP</button>
+          </div>
+          )}
         </div>
       </Card>
       <Card>
@@ -228,6 +271,33 @@ export default function Scan() {
                 setNotice({ type:'error', text: e?.message || 'Delivery failed' });
               }
             }} className="rounded-xl bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700">Confirm via QR</button>
+          </div>
+          <div className="mt-3 grid gap-2">
+            <div className="text-xs text-slate-500">Refill handover workflow</div>
+            <div className="flex items-center gap-2">
+              <button onClick={async ()=>{
+                setNotice(null);
+                if (!orderId) { setNotice({ type:'error', text:'Provide order id' }); return; }
+                const { lat, lon } = await getCoords();
+                try {
+                  await api(`/orders/${orderId}/arrive-supplier`, { method:'POST', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ lat, lon }) });
+                  setNotice({ type:'success', text:'Arrived at supplier.' });
+                } catch (e:any) {
+                  setNotice({ type:'error', text: e?.message || 'Failed to mark arrival at supplier' });
+                }
+              }} className="rounded-xl bg-slate-900 px-4 py-2 text-white hover:bg-slate-800">Arrive at Supplier</button>
+              <button onClick={async ()=>{
+                setNotice(null);
+                if (!orderId) { setNotice({ type:'error', text:'Provide order id' }); return; }
+                const { lat, lon } = await getCoords();
+                try {
+                  await api(`/orders/${orderId}/pickup-supplier`, { method:'POST', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ lat, lon }) });
+                  setNotice({ type:'success', text:'Picked up refilled cylinder from supplier.' });
+                } catch (e:any) {
+                  setNotice({ type:'error', text: e?.message || 'Failed to pickup from supplier' });
+                }
+              }} className="rounded-xl bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700">Pickup from Supplier</button>
+            </div>
           </div>
         </div>
       </Card>

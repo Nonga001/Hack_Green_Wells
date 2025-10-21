@@ -57,36 +57,69 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
 router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
   if (req.role !== 'supplier') return res.status(403).json({ message: 'Forbidden' });
   const docs: any[] = await Cylinder.find({ supplierId: req.userId }).sort({ createdAt: -1 }).lean();
-  // Enrich with current owner names for Agent/Customer
+  // Enrich with current owner names for Agent/Customer and last known address
   try {
     const cylIds = Array.from(new Set(docs.map(d => String(d.cylId))));
     if (cylIds.length > 0) {
       const orders = await Order.find({ supplierId: req.userId, 'cylinder.id': { $in: cylIds } })
-        .select('cylinder.id customerId assignedAgentId status createdAt deliveredAt')
+        .select('cylinder.id customerId assignedAgentId status type createdAt deliveredAt')
         .sort({ createdAt: -1 })
         .lean();
       const latestByCyl = new Map<string, any>();
+      const latestActiveByCyl = new Map<string, any>();
       for (const o of orders) {
         const id = String((o as any)?.cylinder?.id || '');
         if (!id) continue;
         if (!latestByCyl.has(id)) latestByCyl.set(id, o);
+        if (!latestActiveByCyl.has(id) && ['Pending','Approved','Assigned','In Transit','At Supplier'].includes((o as any).status)) {
+          latestActiveByCyl.set(id, o);
+        }
       }
       const customerIds = Array.from(new Set(Array.from(latestByCyl.values()).map((o: any) => String(o.customerId)).filter(Boolean)));
       const agentIds = Array.from(new Set(Array.from(latestByCyl.values()).map((o: any) => String(o.assignedAgentId)).filter(Boolean)));
-      const [customers, agents] = await Promise.all([
-        customerIds.length ? User.find({ _id: { $in: customerIds } }).select('fullName').lean() : Promise.resolve([]),
+      const [customers, agents, supplier] = await Promise.all([
+        customerIds.length ? User.find({ _id: { $in: customerIds } }).select('fullName deliveryAddress').lean() : Promise.resolve([]),
         agentIds.length ? User.find({ _id: { $in: agentIds } }).select('fullName').lean() : Promise.resolve([]),
+        User.findById(req.userId).select('businessAddress').lean(),
       ]);
-      const customerById = new Map(customers.map((u: any) => [String(u._id), u.fullName]));
+      const customerNameById = new Map(customers.map((u: any) => [String(u._id), u.fullName]));
+      const customerAddrById = new Map(customers.map((u: any) => [String(u._id), u.deliveryAddress || null]));
       const agentById = new Map(agents.map((u: any) => [String(u._id), u.fullName]));
       for (const d of docs) {
         const latest = latestByCyl.get(String(d.cylId));
+        const latestActive = latestActiveByCyl.get(String(d.cylId));
         if (!latest) continue;
         if (d.owner === 'Customer') {
-          (d as any).ownerName = customerById.get(String((latest as any).customerId)) || null;
+          (d as any).ownerName = customerNameById.get(String((latest as any).customerId)) || null;
         } else if (d.owner === 'Agent') {
           (d as any).ownerName = agentById.get(String((latest as any).assignedAgentId)) || null;
         }
+        // Attach last transaction type and current active type (if any) for UI badge
+        (d as any).lastType = (latest as any)?.type === 'refill' ? 'refill' : 'order';
+        if (latestActive) {
+          (d as any).currentActiveType = (latestActive as any).type === 'refill' ? 'refill' : 'order';
+        }
+        // Derive last known address text: supplier business area before pickup, customer address for in-transit/delivered
+        const formatAddr = (addr: any) => {
+          if (!addr) return null;
+          const a = [addr.addressLine, addr.city, addr.postalCode].filter(Boolean).join(', ');
+          return a || null;
+        };
+        let lastAddressText: string | null = null;
+        if (latestActive) {
+          const st = String((latestActive as any).status);
+          if (st === 'Assigned') {
+            lastAddressText = String((supplier as any)?.businessAddress || '') || null;
+          } else if (st === 'In Transit') {
+            const ca = customerAddrById.get(String((latestActive as any).customerId)) || null;
+            const fa = formatAddr(ca);
+            lastAddressText = fa ? `To: ${fa}` : 'En route';
+          }
+        } else if (String((latest as any).status) === 'Delivered') {
+          const ca = customerAddrById.get(String((latest as any).customerId)) || null;
+          lastAddressText = formatAddr(ca);
+        }
+        if (lastAddressText) (d as any).lastAddressText = lastAddressText;
       }
     }
   } catch {
