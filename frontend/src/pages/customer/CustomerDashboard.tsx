@@ -9,11 +9,12 @@ import TabButton from './components/TabButton';
 
 export default function CustomerDashboard() {
   const [activeTab, setActiveTab] = React.useState<'overview' | 'order' | 'orders' | 'cylinder' | 'loyalty' | 'settings'>('overview');
+  const [refillPrefill, setRefillPrefill] = React.useState<any | null>(null);
 
   return (
     <div>
       <div className="flex flex-wrap gap-2">
-        <TabButton id="overview" activeId={activeTab} label="Home / Overview" icon="🏠" onClick={setActiveTab} />
+  <TabButton id="overview" activeId={activeTab} label="Home / Overview" icon="🏠" onClick={setActiveTab} />
         <TabButton id="order" activeId={activeTab} label="Order / Refill" icon="🛒" onClick={setActiveTab} />
         <TabButton id="orders" activeId={activeTab} label="My Orders" icon="📦" onClick={setActiveTab} />
         <TabButton id="cylinder" activeId={activeTab} label="My Cylinder" icon="⛽" onClick={setActiveTab} />
@@ -21,8 +22,8 @@ export default function CustomerDashboard() {
         <TabButton id="settings" activeId={activeTab} label="Settings" icon="⚙️" onClick={setActiveTab} />
       </div>
       <div className="mt-6">
-        {activeTab === 'overview' && <Overview />}
-        {activeTab === 'order' && <Order />}
+  {activeTab === 'overview' && <Overview onQuickRefill={(prefill:any)=>{ setRefillPrefill(prefill); setActiveTab('order'); }} />}
+  {activeTab === 'order' && <Order initialRefill={refillPrefill} />}
         {activeTab === 'orders' && <Orders />}
         {activeTab === 'cylinder' && <Cylinder />}
         {activeTab === 'loyalty' && <Loyalty />}

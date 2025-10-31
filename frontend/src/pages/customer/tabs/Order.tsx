@@ -22,9 +22,9 @@ function haversineKm(a: { lat: number; lon: number }, b: { lat: number; lon: num
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
-export default function Order() {
+export default function Order({ initialRefill }: { initialRefill?: any } = {}) {
   const today = React.useMemo(() => new Date().toISOString().slice(0,10), []);
-  const [subTab, setSubTab] = React.useState<'order' | 'refill'>('order');
+  const [subTab, setSubTab] = React.useState<'order' | 'refill'>(initialRefill ? 'refill' : 'order');
   const [customerCoords, setCustomerCoords] = React.useState<{ lat: number; lon: number } | null>(null);
   const [size, setSize] = React.useState('13kg');
   const [selectedSupplier, setSelectedSupplier] = React.useState<Supplier | null>(null);
@@ -243,7 +243,7 @@ export default function Order() {
           </div>
           </form>
         )}
-        {subTab==='refill' && <RefillTab />}
+  {subTab==='refill' && <RefillTab initialRefill={initialRefill} />}
       </Card>
       {subTab==='order' && (
         <Card>
@@ -261,7 +261,7 @@ export default function Order() {
   );
 }
 
-function RefillTab() {
+function RefillTab({ initialRefill }: { initialRefill?: any } = {}) {
   const today = React.useMemo(() => new Date().toISOString().slice(0,10), []);
   const [ownedCylinders, setOwnedCylinders] = React.useState<Array<{ cylId: string; size: string; brand: string; refillPrice: number | null; supplierId: string }>>([]);
   const [suppliers, setSuppliers] = React.useState<Array<{ id: string; name: string; phone: string; coords: { lat: number; lon: number } }>>([]);
@@ -302,6 +302,18 @@ function RefillTab() {
       }
     })();
   }, []);
+
+  // apply initial prefill if provided
+  React.useEffect(() => {
+    if (!initialRefill) return;
+    try {
+      if (initialRefill.refillCylId) setRefillCylId(initialRefill.refillCylId);
+      else if (initialRefill.cylId) setRefillCylId(initialRefill.cylId);
+      if (initialRefill.refillSize) setRefillSize(initialRefill.refillSize);
+      if (initialRefill.refillBrand) setRefillBrand(initialRefill.refillBrand);
+      // keep date/time as default
+    } catch (e) {}
+  }, [initialRefill]);
 
   React.useEffect(() => {
     // When a cylinder is selected, populate size/brand/refill price and supplier
