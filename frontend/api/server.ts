@@ -1,4 +1,3 @@
-import serverless from 'serverless-http';
 import mongoose from 'mongoose';
 
 // Reuse mongoose connection across lambda invocations
@@ -46,11 +45,14 @@ async function resolveApp() {
   throw new Error('Could not resolve backend app module from expected paths');
 }
 
+// Vercel expects a standard (req, res) handler. Instead of wrapping with
+// serverless-http we can directly call the express app handler after ensuring
+// the DB connection is ready. This avoids adapter issues that can cause 404s.
 const handler = async (req: any, res: any) => {
   await connect();
   const app = await resolveApp();
-  const fn = serverless(app as any);
-  return fn(req, res);
+  // Express apps are callable as functions (req, res)
+  return app(req, res);
 };
 
 export default handler;
