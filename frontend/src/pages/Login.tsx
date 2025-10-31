@@ -11,6 +11,10 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [notice, setNotice] = useState<{
+    kind: 'suspended' | 'removed' | 'error';
+    text: string;
+  } | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,10 +32,27 @@ export default function Login() {
       else if (userRole === 'agent') window.location.href = '/agent';
       else window.location.href = '/customer';
     } catch (err: any) {
-      if (err.message === 'Invalid credentials') {
+      const message = err?.message || 'Login failed';
+      const status = err?.status as number | undefined;
+      if (status === 403) {
+        const lower = String(message).toLowerCase();
+        if (lower.includes('suspended')) {
+          setNotice({
+            kind: 'suspended',
+            text: 'Your account is temporarily suspended. If you believe this is a mistake, please contact your administrator to restore access.',
+          });
+        } else if (lower.includes('removed')) {
+          setNotice({
+            kind: 'removed',
+            text: 'Your account has been removed and can no longer be used to sign in. If this is unexpected, reach out to your administrator.',
+          });
+        } else {
+          setError(message);
+        }
+      } else if (message === 'Invalid credentials') {
         setError('Incorrect email or password. Please check your credentials and try again.');
       } else {
-        setError(err.message || 'Login failed');
+        setError(message);
       }
     } finally {
       setLoading(false);
@@ -111,7 +132,57 @@ export default function Login() {
             </div>
           </div>
           
-          {error && (
+          {notice && (
+            <div
+              className={`rounded-xl p-4 border ${
+                notice.kind === 'suspended'
+                  ? 'bg-amber-50 border-amber-200'
+                  : notice.kind === 'removed'
+                  ? 'bg-rose-50 border-rose-200'
+                  : 'bg-slate-50 border-slate-200'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="text-xl">
+                  {notice.kind === 'suspended' ? '⏸️' : notice.kind === 'removed' ? '🗑️' : 'ℹ️'}
+                </div>
+                <div className="flex-1">
+                  <p
+                    className={`text-sm font-medium ${
+                      notice.kind === 'suspended'
+                        ? 'text-amber-800'
+                        : notice.kind === 'removed'
+                        ? 'text-rose-800'
+                        : 'text-slate-700'
+                    }`}
+                  >
+                    {notice.text}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => (window.location.href = '/')}
+                      className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm ring-1 ring-slate-300 hover:bg-slate-50"
+                    >
+                      Home
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNotice(null);
+                        setError(null);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800"
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {error && !notice && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 animate-shake">
               <div className="flex items-center gap-2">
                 <span className="text-red-500">⚠️</span>

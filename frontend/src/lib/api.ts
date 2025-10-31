@@ -35,11 +35,32 @@ export async function api(path: string, options: RequestInit = {}): Promise<any>
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
   });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || 'Request failed');
-  }
+
   const contentType = res.headers.get('content-type') || '';
+
+  if (!res.ok) {
+    let message = 'Request failed';
+    try {
+      if (contentType.includes('application/json')) {
+        const data = await res.json();
+        message = (data && (data.message || data.error)) || message;
+        if (!message && data && data.errors) {
+          if (Array.isArray(data.errors)) message = data.errors.join(', ');
+          else if (data.errors?.formErrors?.fieldErrors) message = JSON.stringify(data.errors.formErrors.fieldErrors);
+        }
+        if (!message) message = JSON.stringify(data);
+      } else {
+        const text = await res.text();
+        message = text || message;
+      }
+    } catch {
+      // ignore parse errors, keep default message
+    }
+    const err = new Error(message) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
+
   if (contentType.includes('application/json')) return res.json();
   return res.text();
 }
