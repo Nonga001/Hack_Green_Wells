@@ -9,7 +9,7 @@ export interface CylinderDocument extends Document {
   refillPrice?: number;
   manufactureDate?: string;
   condition?: 'New' | 'Used' | 'Damaged';
-  status: 'Available' | 'In Transit' | 'Delivered' | 'Lost' | 'Damaged';
+  status: 'Available' | 'Booked' | 'In Transit' | 'At Supplier' | 'Delivered' | 'Lost' | 'Damaged';
   owner: string; // Supplier / Agent / Customer
   locationText?: string;
   coords?: { lat: number; lon: number } | null;

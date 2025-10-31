@@ -1,4 +1,4 @@
-import React from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 
 export default function TabButton({
   id,
@@ -11,12 +11,12 @@ export default function TabButton({
   activeId: string;
   label: string;
   icon: string;
-  onClick: (id: string) => void;
+  onClick: ((id: string) => void) | Dispatch<SetStateAction<any>>;
 }) {
   const isActive = activeId === id;
   return (
     <button
-      onClick={() => onClick(id)}
+      onClick={() => (onClick as any)(id)}
       className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium ring-1 transition-all duration-200 ${
         isActive
           ? 'bg-blue-600 text-white ring-blue-600 shadow hover:shadow-md'

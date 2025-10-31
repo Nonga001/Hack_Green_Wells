@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
-    "seed:admin": "tsx src/seedAdmin.ts"
+    "seed:admin": "tsx src/seedAdmin.ts",
+    "test:pickup": "tsx src/scripts/runPickupFlowTest.ts"
   },
   "keywords": [],
   "author": "",

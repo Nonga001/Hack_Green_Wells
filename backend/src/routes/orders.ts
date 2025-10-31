@@ -2,6 +2,7 @@ import express, { type Response } from 'express';
 import crypto from 'crypto';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { Order } from '../models/Order.js';
+import { syncCylinderFromOrder } from '../utils/syncCylinder.js';
 import { Cylinder } from '../models/Cylinder.js';
 import { User } from '../models/User.js';
 
@@ -131,9 +132,22 @@ router.patch('/:orderId', requireAuth, async (req: AuthRequest, res: Response) =
   if (typeof req.body.assignedAgentId === 'string') updates.assignedAgentId = req.body.assignedAgentId;
   const doc = await Order.findOneAndUpdate({ _id: orderId, supplierId: req.userId }, { $set: updates }, { new: true });
   if (!doc) return res.status(404).json({ message: 'Order not found' });
+  // Prevent supplier from incorrectly marking non-refill orders as At Supplier
+  if (updates.status === 'At Supplier' && (doc as any).type !== 'refill') {
+    return res.status(400).json({ message: 'Only refill orders can be marked At Supplier' });
+  }
   // If rejected, release booked cylinder
   if (updates.status === 'Rejected' && doc.cylinder?.id) {
     await Cylinder.findOneAndUpdate({ supplierId: req.userId, cylId: doc.cylinder.id, status: 'Booked' }, { $set: { status: 'Available' } });
+  }
+  // Propagate some status changes to Cylinder so inventory stays in sync
+  try {
+    if (updates.status && doc.cylinder?.id) {
+      // Use centralized sync helper to keep logic in one place
+      await syncCylinderFromOrder(doc);
+    }
+  } catch (e) {
+    console.error('Failed to propagate order status to cylinder', e);
   }
   return res.json({ ok: true });
 });
@@ -167,9 +181,13 @@ router.post('/:orderId/assign-agent', requireAuth, async (req: AuthRequest, res:
   if (!agentId) return res.status(400).json({ message: 'agentId required' });
   const order = await Order.findOne({ _id: orderId, supplierId: req.userId });
   if (!order) return res.status(404).json({ message: 'Order not found' });
-  if (order.status !== 'Approved') return res.status(400).json({ message: 'Order must be Approved to assign agent' });
+  // Allow assigning when Approved, or when a refill is already At Supplier (supplier wants an agent to pick it)
+  if (!(order.status === 'Approved' || (order.type === 'refill' && order.status === 'At Supplier'))) {
+    return res.status(400).json({ message: 'Order must be Approved or (refill At Supplier) to assign agent' });
+  }
   order.assignedAgentId = agentId;
-  order.status = 'Assigned';
+  // If order was Approved, transition to Assigned. If it was At Supplier (refill), keep status At Supplier
+  if (order.status === 'Approved') order.status = 'Assigned';
   // generate OTP (6 digits, 20 min expiry)
   const otp = (Math.floor(100000 + Math.random() * 900000)).toString();
   (order as any).otpHash = crypto.createHash('sha256').update(otp).digest('hex');
@@ -178,11 +196,28 @@ router.post('/:orderId/assign-agent', requireAuth, async (req: AuthRequest, res:
   return res.json({ ok: true });
 });
 
-// Agent: get assigned orders
+// Agent: get assigned orders (include assigned refills that are At Supplier)
 router.get('/agent', requireAuth, async (req: AuthRequest, res: Response) => {
   if (req.role !== 'agent') return res.status(403).json({ message: 'Forbidden' });
-  const docs = await Order.find({ assignedAgentId: req.userId, status: { $in: ['Assigned', 'In Transit'] } }).sort({ createdAt: -1 }).lean();
-  return res.json(docs);
+  try {
+    const docs = await Order.find({ assignedAgentId: req.userId, status: { $in: ['Assigned', 'In Transit', 'At Supplier'] } }).sort({ createdAt: -1 }).lean();
+    return res.json(docs);
+  } catch (e) {
+    console.error('agent list failed', e);
+    return res.status(500).json({ message: 'Failed to list orders' });
+  }
+});
+
+// Agent: list assigned refill orders that are currently At Supplier
+router.get('/agent/at-supplier', requireAuth, async (req: AuthRequest, res: Response) => {
+  if (req.role !== 'agent') return res.status(403).json({ message: 'Forbidden' });
+  try {
+    const docs = await Order.find({ assignedAgentId: req.userId, status: 'At Supplier', type: 'refill' }).sort({ createdAt: -1 }).lean();
+    return res.json(docs || []);
+  } catch (e) {
+    console.error('agent at-supplier list failed', e);
+    return res.status(500).json({ message: 'Failed to list orders' });
+  }
 });
 
 // Agent: accept/decline assignment
@@ -197,7 +232,7 @@ router.post('/:orderId/agent-response', requireAuth, async (req: AuthRequest, re
     // Stay in Assigned on accept; transition to In Transit happens on /pickup
     await order.save();
   } else {
-    order.assignedAgentId = undefined;
+  (order as any).assignedAgentId = undefined;
     order.status = 'Approved';
     await order.save();
   }
@@ -239,9 +274,8 @@ router.post('/:orderId/pickup', requireAuth, async (req: AuthRequest, res: Respo
   (order as any).pickupAt = new Date();
   if (typeof lat === 'number' && typeof lon === 'number') (order as any).pickupCoords = { lat, lon };
   await order.save();
-  if ((order as any).cylinder?.id) {
-    await Cylinder.findOneAndUpdate({ supplierId: (order as any).supplierId, cylId: (order as any).cylinder.id }, { $set: { status: 'In Transit', owner: 'Agent', coords: (typeof lat==='number' && typeof lon==='number') ? { lat, lon } : undefined } });
-  }
+  // ensure cylinder reflects order state
+  await syncCylinderFromOrder(order);
   return res.json({ ok: true });
 });
 
@@ -257,21 +291,83 @@ router.post('/:orderId/arrive-supplier', requireAuth, async (req: AuthRequest, r
   (order as any).status = 'At Supplier';
   if (typeof lat === 'number' && typeof lon === 'number') (order as any).deliveryCoords = { lat, lon };
   await order.save();
+  // ensure cylinder reflects order state (owner -> Supplier, status -> Available)
+  await syncCylinderFromOrder(order);
   return res.json({ ok: true });
+});
+
+// Supplier: generate OTP for agent to pickup refilled cylinder
+router.post('/:orderId/generate-supplier-otp', requireAuth, async (req: AuthRequest, res: Response) => {
+  if (req.role !== 'supplier') return res.status(403).json({ message: 'Forbidden' });
+  const { orderId } = req.params;
+  const order = await Order.findOne({ _id: orderId, supplierId: req.userId });
+  if (!order) return res.status(404).json({ message: 'Order not found' });
+  if ((order as any).type !== 'refill') return res.status(400).json({ message: 'Only refill orders can generate supplier OTP' });
+  if ((order as any).status !== 'At Supplier') return res.status(400).json({ message: 'Order must be At Supplier to generate OTP' });
+  const otp = (Math.floor(100000 + Math.random() * 900000)).toString();
+  (order as any).otpHash = crypto.createHash('sha256').update(otp).digest('hex');
+  (order as any).otpExpiresAt = new Date(Date.now() + 20 * 60 * 1000);
+  await order.save();
+  return res.json({ otp, expiresInMinutes: 20 });
 });
 
 // Agent picks up refilled cylinder from supplier and heads back to customer
 router.post('/:orderId/pickup-supplier', requireAuth, async (req: AuthRequest, res: Response) => {
   if (req.role !== 'agent') return res.status(403).json({ message: 'Forbidden' });
   const { orderId } = req.params;
-  const { lat, lon } = req.body || {};
-  const order = await Order.findOne({ _id: orderId, assignedAgentId: req.userId });
-  if (!order) return res.status(404).json({ message: 'Order not found' });
-  if ((order as any).type !== 'refill') return res.status(400).json({ message: 'Only refill orders can pickup from supplier' });
-  if ((order as any).status !== 'At Supplier') return res.status(400).json({ message: 'Order must be At Supplier to pickup' });
+  const { lat, lon, otp, cylId } = req.body || {};
+  // Allow identifying the refill order by cylinder id (preferred) or by order id
+  let order: any = null;
+  if (cylId) {
+    order = await Order.findOne({ assignedAgentId: req.userId, 'cylinder.id': cylId });
+  } else {
+    order = await Order.findOne({ _id: orderId, assignedAgentId: req.userId });
+  }
+  if (!order) {
+    console.error('[pickup-supplier] Order not found', { orderIdParam: orderId, cylId, agentId: req.userId });
+    return res.status(404).json({ message: 'Order not found' });
+  }
+  // Log current order and request context to aid debugging
+  try {
+    console.info('[pickup-supplier] orderFound', { id: String(order._id), type: (order as any).type, status: (order as any).status, otpHashExists: !!(order as any).otpHash, otpExpiresAt: (order as any).otpExpiresAt, cylId: (order as any).cylinder?.id });
+    console.info('[pickup-supplier] reqBody', { cylId, otp, lat, lon });
+  } catch (e) {
+    console.error('[pickup-supplier] failed to log order/request', e);
+  }
+
+  // tolerate older/mismatched records: treat orders with status 'At Supplier' as refills
+  const isRefill = String((order as any).type || '').toLowerCase() === 'refill';
+  if (!isRefill) {
+    if ((order as any).status === 'At Supplier') {
+      // auto-correct the DB record to be a refill so pickup can proceed
+      console.warn('[pickup-supplier] auto-correcting order.type to refill for order', String(order._id));
+      (order as any).type = 'refill';
+      await order.save();
+    } else {
+      console.error('[pickup-supplier] rejected: not a refill and not at supplier', { id: String(order._id), type: (order as any).type, status: (order as any).status });
+      return res.status(400).json({ message: 'Only refill orders can pickup from supplier' });
+    }
+  }
+  if ((order as any).status !== 'At Supplier') {
+    console.error('[pickup-supplier] rejected: order not At Supplier', { id: String(order._id), status: (order as any).status });
+    return res.status(400).json({ message: 'Order must be At Supplier to pickup' });
+  }
+  // require OTP verification for pickup from supplier
+  if (!(otp && (order as any).otpHash && (order as any).otpExpiresAt && (order as any).otpExpiresAt > new Date())) {
+    return res.status(400).json({ message: 'OTP required for pickup from supplier' });
+  }
+  const hash = crypto.createHash('sha256').update(String(otp)).digest('hex');
+  if (hash !== (order as any).otpHash) return res.status(400).json({ message: 'Invalid OTP' });
+  // OTP ok -> pickup
   (order as any).status = 'In Transit';
+  (order as any).refilledAt = new Date();
   if (typeof lat === 'number' && typeof lon === 'number') (order as any).pickupCoords = { lat, lon };
+  // clear OTP
+  (order as any).otpHash = undefined;
+  (order as any).otpExpiresAt = undefined;
   await order.save();
+  // ensure cylinder reflects order state (owner -> Agent, status -> In Transit)
+  await syncCylinderFromOrder(order);
   return res.json({ ok: true });
 });
 
@@ -300,9 +396,8 @@ router.post('/:orderId/deliver', requireAuth, async (req: AuthRequest, res: Resp
   (order as any).otpHash = undefined;
   (order as any).otpExpiresAt = undefined;
   await order.save();
-  if ((order as any).cylinder?.id) {
-    await Cylinder.findOneAndUpdate({ supplierId: (order as any).supplierId, cylId: (order as any).cylinder.id }, { $set: { status: 'Delivered', owner: 'Customer', coords: (typeof lat==='number' && typeof lon==='number') ? { lat, lon } : undefined } });
-  }
+  // ensure cylinder reflects delivered state
+  await syncCylinderFromOrder(order);
   return res.json({ ok: true });
 });
 
@@ -330,6 +425,41 @@ router.get('/:orderId/invoice', requireAuth, async (req: AuthRequest, res: Respo
   ];
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   return res.send(lines.join('\n'));
+});
+
+// Supplier: reconcile orders -> cylinders (best-effort)
+router.post('/sync-cylinders', requireAuth, async (req: AuthRequest, res: Response) => {
+  if (req.role !== 'supplier') return res.status(403).json({ message: 'Forbidden' });
+  try {
+    const orders = await Order.find({ supplierId: req.userId, status: { $in: ['At Supplier', 'In Transit', 'Delivered'] } }).select('cylinder.id status').lean();
+    let updated = 0;
+    for (const o of orders) {
+      await syncCylinderFromOrder(o);
+      updated++;
+    }
+    return res.json({ ok: true, orders: orders.length, updated });
+  } catch (e) {
+    console.error('sync-cylinders failed', e);
+    return res.status(500).json({ message: 'Sync failed' });
+  }
+});
+
+
+// Debug: fetch raw order (accessible to supplier/agent/customer owner) for troubleshooting
+router.get('/:orderId/debug', requireAuth, async (req: AuthRequest, res: Response) => {
+  const { orderId } = req.params;
+  try {
+    const doc = await Order.findById(orderId).lean();
+    if (!doc) return res.status(404).json({ message: 'Order not found' });
+    // authorize: supplier, assigned agent, or owning customer
+    if (req.role === 'supplier' && String(doc.supplierId) !== String(req.userId)) return res.status(403).json({ message: 'Forbidden' });
+    if (req.role === 'agent' && String((doc as any).assignedAgentId) !== String(req.userId)) return res.status(403).json({ message: 'Forbidden' });
+    if (req.role === 'customer' && String(doc.customerId) !== String(req.userId)) return res.status(403).json({ message: 'Forbidden' });
+    return res.json(doc);
+  } catch (e) {
+    console.error('debug order fetch failed', e);
+    return res.status(500).json({ message: 'Failed to fetch order' });
+  }
 });
 
 

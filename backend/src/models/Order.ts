@@ -17,6 +17,7 @@ export interface OrderDocument extends Document {
   pickupAt?: Date | null;
   pickupCoords?: { lat: number; lon: number } | null;
   deliveredAt?: Date | null;
+  refilledAt?: Date | null;
   deliveryCoords?: { lat: number; lon: number } | null;
   createdAt: Date;
   updatedAt: Date;
@@ -51,6 +52,7 @@ const OrderSchema = new Schema<OrderDocument>({
   pickupAt: { type: Date },
   pickupCoords: { type: new Schema({ lat: Number, lon: Number }, { _id: false }) },
   deliveredAt: { type: Date },
+  refilledAt: { type: Date },
   deliveryCoords: { type: new Schema({ lat: Number, lon: Number }, { _id: false }) },
 }, { timestamps: true });
 

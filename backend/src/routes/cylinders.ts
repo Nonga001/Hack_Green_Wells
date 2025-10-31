@@ -89,15 +89,44 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
         const latest = latestByCyl.get(String(d.cylId));
         const latestActive = latestActiveByCyl.get(String(d.cylId));
         if (!latest) continue;
-        if (d.owner === 'Customer') {
-          (d as any).ownerName = customerNameById.get(String((latest as any).customerId)) || null;
-        } else if (d.owner === 'Agent') {
-          (d as any).ownerName = agentById.get(String((latest as any).assignedAgentId)) || null;
+        // Prefer order-derived owner/status for active flows
+        if (latestActive) {
+          const st = String((latestActive as any).status);
+          if (st === 'At Supplier') {
+            // Active order is at supplier — reflect that the cylinder is held by the supplier but is in-store (Available)
+            (d as any).owner = 'Supplier';
+            (d as any).status = 'Available';
+            // Persist corrective update if DB is out-of-sync (best-effort)
+            try {
+              // Only update if the stored doc doesn't already match
+              await Cylinder.updateOne({ supplierId: String(d.supplierId || req.userId), cylId: d.cylId }, { $set: { owner: 'Supplier', status: 'Available' } });
+            } catch (e) {
+              // ignore
+            }
+          } else if (st === 'In Transit') {
+            (d as any).owner = 'Agent';
+            (d as any).status = 'In Transit';
+          } else if (st === 'Delivered') {
+            (d as any).owner = 'Customer';
+            (d as any).status = 'Delivered';
+          }
+        } else {
+          if (d.owner === 'Customer') {
+            (d as any).ownerName = customerNameById.get(String((latest as any).customerId)) || null;
+          } else if (d.owner === 'Agent') {
+            (d as any).ownerName = agentById.get(String((latest as any).assignedAgentId)) || null;
+          }
         }
-        // Attach last transaction type and current active type (if any) for UI badge
+        // Attach last transaction type/status and current active type/status (if any) for UI badge
         (d as any).lastType = (latest as any)?.type === 'refill' ? 'refill' : 'order';
+        (d as any).lastStatus = (latest as any)?.status || null;
         if (latestActive) {
           (d as any).currentActiveType = (latestActive as any).type === 'refill' ? 'refill' : 'order';
+          (d as any).currentActiveStatus = (latestActive as any).status || null;
+          (d as any).currentActiveOrderId = String((latestActive as any)._id || '');
+        } else {
+          (d as any).currentActiveStatus = null;
+          (d as any).currentActiveOrderId = null;
         }
         // Derive last known address text: supplier business area before pickup, customer address for in-transit/delivered
         const formatAddr = (addr: any) => {

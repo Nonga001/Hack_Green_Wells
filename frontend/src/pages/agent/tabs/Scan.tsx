@@ -15,6 +15,9 @@ export default function Scan() {
   const [pickupStream, setPickupStream] = React.useState<MediaStream | null>(null);
   const [deliverStream, setDeliverStream] = React.useState<MediaStream | null>(null);
   const [assigned, setAssigned] = React.useState<any[]>([]);
+  const [showSupplierPickupModal, setShowSupplierPickupModal] = React.useState(false);
+  const [selectedPickupOrder, setSelectedPickupOrder] = React.useState<any | null>(null);
+  const [selectedPickupOtp, setSelectedPickupOtp] = React.useState('');
   const pickupOverlayRef = React.useRef<HTMLDivElement | null>(null);
   const deliverOverlayRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -155,18 +158,27 @@ export default function Scan() {
           )}
           {pickupMode==='refill' && (
           <div className="flex items-center gap-2">
-            <input className="flex-1 rounded-xl border border-slate-300 px-3 py-2" placeholder="OTP (6 digits) for Pickup" value={pickupOtp} onChange={(e)=>setPickupOtp(e.target.value.replace(/[^0-9]/g,''))} />
+            <div className="flex-1">
+              <select className="w-full rounded-xl border border-slate-300 px-3 py-2" value={orderId} onChange={(e)=>{ const id = e.target.value; setOrderId(id); const o = assigned.find((x:any)=> x._id===id); setExpectedCylId(o?.cylinder?.id || ''); setSelectedPickupOrder(o || null); }}>
+                <option value="">Select refill at supplier</option>
+                {(assigned.filter((x:any)=> x.type==='refill' && x.status==='At Supplier')||[]).map((o:any)=> (
+                  <option key={o._id} value={o._id}>{o._id} • #{o.cylinder?.id || '-'} • {o.cylinder?.size} {o.cylinder?.brand}</option>
+                ))}
+              </select>
+            </div>
+            <input className="w-40 rounded-xl border border-slate-300 px-3 py-2" placeholder="OTP (6 digits) for Pickup" value={pickupOtp} onChange={(e)=>setPickupOtp(e.target.value.replace(/[^0-9]/g,''))} />
             <button onClick={async ()=>{
               setNotice(null);
-              if (!orderId) { setNotice({ type:'error', text:'Provide order id' }); return; }
+              if (!orderId) { setNotice({ type:'error', text:'Select the refill order at supplier' }); return; }
               if (!pickupOtp || pickupOtp.length !== 6) { setNotice({ type:'error', text:'Enter 6-digit OTP (refill pickup)' }); return; }
               const { lat, lon } = await getCoords();
               try {
-                await api(`/orders/${orderId}/pickup`, { method:'POST', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ otp: pickupOtp, lat, lon }) });
+                await api(`/orders/${orderId}/pickup-supplier`, { method:'POST', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ cylId: expectedCylId, otp: pickupOtp, lat, lon }) });
                 setNotice({ type:'success', text: 'Pickup confirmed via OTP. Order is now In Transit.' });
                 setPickupOtp('');
                 setOrderId('');
                 setExpectedCylId('');
+                setSelectedPickupOrder(null);
                 if (pickupVideoRef.current) {
                   pickupVideoRef.current.pause();
                   pickupVideoRef.current.srcObject = null;
@@ -291,8 +303,9 @@ export default function Scan() {
                 if (!orderId) { setNotice({ type:'error', text:'Provide order id' }); return; }
                 const { lat, lon } = await getCoords();
                 try {
-                  await api(`/orders/${orderId}/pickup-supplier`, { method:'POST', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ lat, lon }) });
-                  setNotice({ type:'success', text:'Picked up refilled cylinder from supplier.' });
+                  // Open modal listing at-supplier orders for this agent so they can choose and confirm via OTP
+                    // open modal showing assigned refills at supplier (derived from assigned list)
+                    setShowSupplierPickupModal(true);
                 } catch (e:any) {
                   setNotice({ type:'error', text: e?.message || 'Failed to pickup from supplier' });
                 }
@@ -301,6 +314,50 @@ export default function Scan() {
           </div>
         </div>
       </Card>
+      {showSupplierPickupModal && (
+        <div className="fixed inset-0 bg-black/40 grid place-items-center p-4">
+          <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-lg font-semibold text-slate-900">Pickup from Supplier — Choose Order</div>
+              <button className="px-3 py-1.5 rounded-lg ring-1 ring-slate-200 hover:bg-slate-50" onClick={()=>{ setShowSupplierPickupModal(false); setSelectedPickupOrder(null); setSelectedPickupOtp(''); }}>Close</button>
+            </div>
+            <div className="mt-3 space-y-2">
+              {(assigned.filter((x:any)=> x.type==='refill' && x.status==='At Supplier') || []).length===0 && (<div className="text-sm text-slate-600">No assigned refill orders currently at supplier.</div>)}
+              {(assigned.filter((x:any)=> x.type==='refill' && x.status==='At Supplier')||[]).map((o:any)=> (
+                <div key={o._id} className={`p-3 rounded-lg border ${selectedPickupOrder?._id===o._id ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200'}`} onClick={()=>setSelectedPickupOrder(o)}>
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-medium text-slate-900">{o._id} • #{o.cylinder?.id || '-'} • {o.cylinder?.size} {o.cylinder?.brand}</div>
+                    <div className="text-xs text-slate-500">Customer: {o.customer?.name || '-'}</div>
+                  </div>
+                  <div className="mt-2 text-xs text-slate-600">Status: {o.status} • Type: {o.type}</div>
+                </div>
+              ))}
+              {selectedPickupOrder && (
+                <div className="mt-3">
+                  <div className="text-xs text-slate-600 mb-2">Enter OTP provided by supplier to confirm pickup</div>
+                  <input className="rounded-xl border border-slate-300 px-3 py-2 w-full" placeholder="6-digit OTP" value={selectedPickupOtp} onChange={(e)=>setSelectedPickupOtp(e.target.value.replace(/[^0-9]/g,''))} />
+                  <div className="mt-3 flex gap-2">
+                    <button onClick={async ()=>{
+                      if (!selectedPickupOtp || selectedPickupOtp.length !== 6) { setNotice({ type:'error', text:'Enter 6-digit OTP' }); return; }
+                      const { lat, lon } = await getCoords();
+                      try {
+                        await api(`/orders/${selectedPickupOrder._id}/pickup-supplier`, { method:'POST', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ cylId: selectedPickupOrder.cylinder?.id, otp: selectedPickupOtp, lat, lon }) });
+                        setNotice({ type:'success', text:'Pickup confirmed. Order is now In Transit.' });
+                        setShowSupplierPickupModal(false);
+                        setSelectedPickupOrder(null);
+                        setSelectedPickupOtp('');
+                      } catch (e:any) {
+                        setNotice({ type:'error', text: e?.message || 'Pickup failed' });
+                      }
+                    }} className="rounded-xl bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700">Confirm Pickup (OTP)</button>
+                    <button onClick={()=>{ setSelectedPickupOrder(null); setSelectedPickupOtp(''); }} className="rounded-xl ring-1 ring-slate-200 px-4 py-2">Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

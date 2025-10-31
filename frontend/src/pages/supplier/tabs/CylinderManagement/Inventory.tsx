@@ -7,6 +7,17 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
   const [status, setStatus] = React.useState<'All' | CylinderRow['status']>('All');
   const filtered = rows.filter(r => status==='All' ? true : r.status===status);
   const [modal, setModal] = React.useState<null | { type: 'map' | 'qr' | 'edit'; row: CylinderRow }>(null);
+  const statusBadge = (s: string | null) => {
+    if (!s) return { label: '-', classes: 'bg-slate-100 text-slate-700' };
+    switch (s) {
+      case 'At Supplier': return { label: 'At Supplier', classes: 'bg-orange-100 text-orange-700' };
+      case 'In Transit': return { label: 'In Transit', classes: 'bg-blue-100 text-blue-700' };
+      case 'Delivered': return { label: 'Delivered', classes: 'bg-emerald-100 text-emerald-700' };
+      case 'Assigned': return { label: 'Assigned', classes: 'bg-yellow-100 text-yellow-700' };
+      case 'Booked': return { label: 'Booked', classes: 'bg-slate-100 text-slate-700' };
+      default: return { label: s, classes: 'bg-slate-100 text-slate-700' };
+    }
+  };
   return (
     <Card>
       <div className="flex items-center justify-between">
@@ -16,6 +27,7 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
           <option>Available</option>
           <option>Booked</option>
           <option>In Transit</option>
+          <option>At Supplier</option>
           <option>Delivered</option>
           <option>Lost</option>
           <option>Damaged</option>
@@ -44,7 +56,15 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
                 <td className="py-2 pr-4">{r.size}</td>
                 <td className="py-2 pr-4">{r.brand}</td>
                 <td className="py-2 pr-4">{typeof (r as any).price === 'number' ? `KES ${(r as any).price}` : '-'}</td>
-                <td className="py-2 pr-4">{r.status}</td>
+                <td className="py-2 pr-4">
+                  {((r as any).currentActiveStatus) ? (
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusBadge((r as any).currentActiveStatus).classes}`}>
+                      {statusBadge((r as any).currentActiveStatus).label}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-slate-700">{r.status}</span>
+                  )}
+                </td>
                 <td className="py-2 pr-4">
                   {((r as any).currentActiveType) ? (
                     <span className={`text-xs px-2 py-0.5 rounded-full ${((r as any).currentActiveType)==='refill' ? 'bg-teal-100 text-teal-700' : 'bg-slate-100 text-slate-700'}`}>
@@ -99,12 +119,13 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
                   <div>Size: {modal.row.size}</div>
                   <div>Brand: {modal.row.brand}</div>
                   <div className="flex items-center gap-2">Status
-                    <select disabled={(modal.row as any).status==='Booked' || (modal.row as any).status==='Delivered'} className="ml-2 rounded-xl border border-slate-300 px-2 py-1 disabled:bg-slate-100" defaultValue={modal.row.status} onChange={async (e)=>{
+                    <select disabled={(modal.row as any).status==='Booked' || (modal.row as any).status==='Delivered' || (modal.row as any).status==='At Supplier'} className="ml-2 rounded-xl border border-slate-300 px-2 py-1 disabled:bg-slate-100" defaultValue={modal.row.status} onChange={async (e)=>{
                       try { await api(`/cylinders/${modal.row.id}`, { method:'PATCH', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ status: e.target.value })}); } catch {}
                     }}>
                       <option>Available</option>
                       <option disabled>Booked</option>
                       <option>In Transit</option>
+                      <option>At Supplier</option>
                       <option>Delivered</option>
                       <option>Lost</option>
                       <option>Damaged</option>
@@ -143,6 +164,9 @@ export default function Inventory({ rows = [] }: { rows?: CylinderRow[] }) {
                   )}
                   {((modal.row as any).status==='In Transit') && (
                     <div className="text-xs text-slate-500">In Transit cylinders cannot be price-edited.</div>
+                  )}
+                  {((modal.row as any).status==='At Supplier') && (
+                    <div className="text-xs text-slate-500">Cylinder is currently at the supplier for refill and cannot be edited here.</div>
                   )}
                   {((modal.row as any).status==='Delivered') && (
                     <div className="text-xs text-slate-500">Delivered cylinders: only refill price is editable.</div>
