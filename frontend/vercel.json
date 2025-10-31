@@ -2,9 +2,6 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-<<<<<<< HEAD
-      "destination": "https://https://hack-green-wells-ny5w.onrender.com/$1"
-=======
       "destination": "/api/$1"
     },
     {
@@ -14,7 +11,6 @@
     {
       "source": "/(.*)",
       "destination": "/index.html"
->>>>>>> 9463e687e4acac0c06a24954c09ba83c268f93fe
     }
   ]
 }

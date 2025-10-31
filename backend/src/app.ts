@@ -1,7 +1,5 @@
-import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { connectToDatabase } from './config/db.js';
 import authRoutes from './routes/auth.js';
 import userRoutes from './routes/user.js';
 import cylinderRoutes from './routes/cylinders.js';
@@ -10,11 +8,14 @@ import suppliersRoutes from './routes/suppliers.js';
 import adminRoutes from './routes/admin.js';
 
 const app = express();
-const port = process.env.PORT ? Number(process.env.PORT) : 4000;
-const origin = process.env.CORS_ORIGIN || '*';
-const mongoUri = process.env.MONGODB_URI || '';
 
-app.use(cors({ origin }));
+const allowedOrigin = process.env.CORS_ORIGIN || 'https://hack-green-wells.vercel.app/';
+
+app.use(cors({ 
+  origin: allowedOrigin,
+  credentials: true
+
+ }));
 app.use(express.json());
 
 app.get('/health', (_req, res) => {
@@ -28,16 +29,4 @@ app.use('/orders', orderRoutes);
 app.use('/suppliers', suppliersRoutes);
 app.use('/admin', adminRoutes);
 
-async function start() {
-  try {
-    await connectToDatabase(mongoUri);
-    app.listen(port, () => {
-      console.log(`✅ Server is running on  https://hack-green-wells-ny5w.onrender.com`);
-    });
-  } catch (err) {
-    console.error('Failed to start server', err);
-    process.exit(1);
-  }
-}
-
-start();
+export default app;
