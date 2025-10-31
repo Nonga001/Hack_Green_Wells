@@ -72,6 +72,15 @@ router.post('/login', async (req: Request, res: Response) => {
   try {
     const user = await User.findOne({ email });
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+    
+    if (user.status === 'suspended') {
+      return res.status(403).json({ message: 'Your account has been suspended. Please contact support.' });
+    }
+    
+    if (user.status === 'removed') {
+      return res.status(403).json({ message: 'Your account has been removed. Please contact support.' });
+    }
+    
     const ok = await comparePassword(password, user.passwordHash);
     if (!ok) return res.status(401).json({ message: 'Invalid credentials' });
     const token = signToken({ sub: String(user._id), role: user.role });
