@@ -199,6 +199,30 @@ router.get('/customer', requireAuth, async (req: AuthRequest, res: Response) => 
   return res.json(results);
 });
 
+// Customer: report cylinder lost/stolen
+router.post('/report', requireAuth, async (req: AuthRequest, res: Response) => {
+  if (req.role !== 'customer') return res.status(403).json({ message: 'Forbidden' });
+  const { supplierId, cylId, reason } = req.body || {};
+  if (!supplierId || !cylId) return res.status(400).json({ message: 'supplierId and cylId are required' });
+  try {
+    // verify customer owns this cylinder via a delivered order
+    const owned = await Order.findOne({ supplierId, customerId: req.userId, 'cylinder.id': cylId, status: 'Delivered' }).sort({ deliveredAt: -1 }).lean();
+    if (!owned) return res.status(403).json({ message: 'You do not own this cylinder' });
+    const cyl = await Cylinder.findOne({ supplierId, cylId });
+    if (!cyl) return res.status(404).json({ message: 'Cylinder not found' });
+    cyl.status = 'Lost';
+    // keep owner as Customer but mark reported
+    (cyl as any).reportedLostBy = String(req.userId);
+    (cyl as any).reportedLostAt = new Date();
+    (cyl as any).reportedLostReason = reason || null;
+    await cyl.save();
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error('report cylinder failed', e);
+    return res.status(500).json({ message: 'Failed to report cylinder' });
+  }
+});
+
 // Update cylinder fields (price/status)
 router.patch('/:cylId', requireAuth, async (req: AuthRequest, res: Response) => {
   if (req.role !== 'supplier') return res.status(403).json({ message: 'Forbidden' });
