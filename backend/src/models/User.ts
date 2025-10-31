@@ -27,6 +27,7 @@ export interface UserDocument extends Document {
   agentLat?: number;
   agentLon?: number;
   availability?: boolean;
+  status?: 'active' | 'suspended' | 'removed';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -61,6 +62,7 @@ const UserSchema = new Schema<UserDocument>(
     agentLat: { type: Number },
     agentLon: { type: Number },
     availability: { type: Boolean, default: false },
+    status: { type: String, enum: ['active', 'suspended', 'removed'], default: 'active' },
   },
   { timestamps: true }
 );
