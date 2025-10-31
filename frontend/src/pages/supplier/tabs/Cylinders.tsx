@@ -1,5 +1,4 @@
 import React from 'react';
-import Card from '../components/Card';
 import AddCylinder from './CylinderManagement/Add';
 import Inventory from './CylinderManagement/Inventory';
 import { api, authHeaders } from '../../../lib/api';

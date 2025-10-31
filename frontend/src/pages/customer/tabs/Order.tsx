@@ -10,7 +10,7 @@ type Supplier = {
   inventory: { cylId: string; size: string; brand: string; price: number }[];
 };
 
-const suppliersMock: Supplier[] = [];
+// suppliersMock removed (not used)
 
 function haversineKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
   const R = 6371;

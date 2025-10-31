@@ -241,16 +241,35 @@ router.post('/:orderId/agent-response', requireAuth, async (req: AuthRequest, re
 
 // Customer: generate an OTP for delivery confirmation
 router.post('/:orderId/issue-otp', requireAuth, async (req: AuthRequest, res: Response) => {
-  if (req.role !== 'customer') return res.status(403).json({ message: 'Forbidden' });
-  const { orderId } = req.params;
-  const order = await Order.findOne({ _id: orderId, customerId: req.userId });
-  if (!order) return res.status(404).json({ message: 'Order not found' });
-  if (!['Assigned', 'In Transit'].includes(order.status)) return res.status(400).json({ message: 'OTP is only available when order is Assigned or In Transit' });
-  const otp = (Math.floor(100000 + Math.random() * 900000)).toString();
-  (order as any).otpHash = crypto.createHash('sha256').update(otp).digest('hex');
-  (order as any).otpExpiresAt = new Date(Date.now() + 20 * 60 * 1000);
-  await order.save();
-  return res.json({ otp, expiresInMinutes: 20 });
+  try {
+    if (req.role !== 'customer') return res.status(403).json({ message: 'Forbidden' });
+    const { orderId } = req.params;
+    const order = await Order.findOne({ _id: orderId, customerId: req.userId });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    // Diagnostic logging to help debug OTP generation failures
+    try {
+      console.info('[issue-otp] request', { orderId, requester: req.userId, role: req.role, status: (order as any).status, otpExpiresAt: (order as any).otpExpiresAt });
+    } catch (e) {
+      console.warn('[issue-otp] logging failed', e);
+    }
+    if (!['Assigned', 'In Transit'].includes(order.status)) return res.status(400).json({ message: 'OTP is only available when order is Assigned or In Transit' });
+    // Prevent issuing a new OTP while a valid one exists
+    if ((order as any).otpExpiresAt && (order as any).otpExpiresAt > new Date()) {
+      return res.status(429).json({ message: 'An active OTP already exists. Please use the existing code or wait until it expires.' });
+    }
+    const otp = (Math.floor(100000 + Math.random() * 900000)).toString();
+    (order as any).otpHash = crypto.createHash('sha256').update(otp).digest('hex');
+    const expiresAt = new Date(Date.now() + 20 * 60 * 1000);
+    (order as any).otpExpiresAt = expiresAt;
+    // audit event
+    (order as any).events = (order as any).events || [];
+    (order as any).events.push({ type: 'otp:issued', by: req.userId, at: new Date(), meta: { expiresAt } });
+    await order.save();
+    return res.json({ otp, expiresAt: expiresAt.toISOString() });
+  } catch (err) {
+    console.error('[issue-otp] failed', err);
+    return res.status(500).json({ message: 'Failed to generate OTP', details: String(err?.message || err) });
+  }
 });
 
 // Agent pickup: verify cylinder scan, transition to In Transit
@@ -396,6 +415,9 @@ router.post('/:orderId/deliver', requireAuth, async (req: AuthRequest, res: Resp
   // clear OTP
   (order as any).otpHash = undefined;
   (order as any).otpExpiresAt = undefined;
+  // audit
+  (order as any).events = (order as any).events || [];
+  (order as any).events.push({ type: 'delivered', by: req.userId, at: new Date(), meta: { via: otp ? 'otp' : 'qr' } });
   await order.save();
   // ensure cylinder reflects delivered state
   await syncCylinderFromOrder(order);

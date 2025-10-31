@@ -16,6 +16,7 @@ export default function Scan() {
   const [deliverStream, setDeliverStream] = React.useState<MediaStream | null>(null);
   const [assigned, setAssigned] = React.useState<any[]>([]);
   const [showSupplierPickupModal, setShowSupplierPickupModal] = React.useState(false);
+  const [showDeliverModal, setShowDeliverModal] = React.useState(false);
   const [selectedPickupOrder, setSelectedPickupOrder] = React.useState<any | null>(null);
   const [selectedPickupOtp, setSelectedPickupOtp] = React.useState('');
   const pickupOverlayRef = React.useRef<HTMLDivElement | null>(null);
@@ -283,6 +284,7 @@ export default function Scan() {
                 setNotice({ type:'error', text: e?.message || 'Delivery failed' });
               }
             }} className="rounded-xl bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700">Confirm via QR</button>
+            <button onClick={()=>setShowDeliverModal(true)} className="rounded-xl bg-slate-700 px-4 py-2 text-white hover:bg-slate-600">Deliver to Customer</button>
           </div>
           <div className="mt-3 grid gap-2">
             <div className="text-xs text-slate-500">Refill handover workflow</div>
@@ -301,7 +303,6 @@ export default function Scan() {
               <button onClick={async ()=>{
                 setNotice(null);
                 if (!orderId) { setNotice({ type:'error', text:'Provide order id' }); return; }
-                const { lat, lon } = await getCoords();
                 try {
                   // Open modal listing at-supplier orders for this agent so they can choose and confirm via OTP
                     // open modal showing assigned refills at supplier (derived from assigned list)
@@ -314,6 +315,54 @@ export default function Scan() {
           </div>
         </div>
       </Card>
+      {showDeliverModal && (
+        <div className="fixed inset-0 bg-black/40 grid place-items-center p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-lg font-semibold text-slate-900">Deliver to Customer</div>
+              <button className="px-3 py-1.5 rounded-lg ring-1 ring-slate-200 hover:bg-slate-50" onClick={()=>{ setShowDeliverModal(false); setOtp(''); }}>Close</button>
+            </div>
+            <div className="mt-3">
+              <div className="text-sm text-slate-600 mb-2">Enter OTP provided by customer or scan customer's QR code.</div>
+              <input className="w-full rounded-xl border border-slate-300 px-3 py-2 mb-2" placeholder="6-digit OTP" value={otp} onChange={(e)=>setOtp(e.target.value.replace(/[^0-9]/g,''))} />
+              <div className="flex gap-2">
+                <button onClick={async ()=>{
+                  setNotice(null);
+                  if (!orderId) { setNotice({ type:'error', text:'Select or scan an order first' }); return; }
+                  if (!otp || otp.length !== 6) { setNotice({ type:'error', text:'Enter 6-digit OTP' }); return; }
+                  const { lat, lon } = await getCoords();
+                  try {
+                    await api(`/orders/${orderId}/deliver`, { method:'POST', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ otp, lat, lon }) });
+                    setNotice({ type:'success', text:'Delivered successfully.' });
+                    setShowDeliverModal(false);
+                    setOtp('');
+                    const docs = await api('/orders/agent', { headers: { ...authHeaders() } });
+                    setAssigned(docs || []);
+                  } catch (e:any) {
+                    setNotice({ type:'error', text: e?.message || 'Delivery failed' });
+                  }
+                }} className="flex-1 rounded-xl bg-emerald-600 px-4 py-2 text-white hover:bg-emerald-700">Confirm via OTP</button>
+                <button onClick={async ()=>{
+                  setNotice(null);
+                  if (!orderId || !expectedCylId) { setNotice({ type:'error', text:'Select or scan an order first' }); return; }
+                  const { lat, lon } = await getCoords();
+                  try {
+                    const payload = { orderId, cylId: expectedCylId };
+                    await api(`/orders/${orderId}/deliver`, { method:'POST', headers: { ...authHeaders(), 'Content-Type':'application/json' }, body: JSON.stringify({ customerQrPayload: payload, lat, lon }) });
+                    setNotice({ type:'success', text:'Delivered successfully (QR).' });
+                    setShowDeliverModal(false);
+                    setOtp('');
+                    const docs = await api('/orders/agent', { headers: { ...authHeaders() } });
+                    setAssigned(docs || []);
+                  } catch (e:any) {
+                    setNotice({ type:'error', text: e?.message || 'Delivery failed' });
+                  }
+                }} className="flex-1 rounded-xl bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-700">Confirm via QR</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {showSupplierPickupModal && (
         <div className="fixed inset-0 bg-black/40 grid place-items-center p-4">
           <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl p-4">

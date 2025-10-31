@@ -19,6 +19,7 @@ export interface OrderDocument extends Document {
   deliveredAt?: Date | null;
   refilledAt?: Date | null;
   deliveryCoords?: { lat: number; lon: number } | null;
+  events?: Array<{ type: string; by?: string; at: Date; meta?: any }>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +36,13 @@ const DeliveryInfo = new Schema({
   time: { type: String },
   distanceKm: { type: Number },
   fee: { type: Number },
+}, { _id: false });
+
+const EventSchema = new Schema({
+  type: { type: String },
+  by: { type: String },
+  at: { type: Date },
+  meta: { type: Schema.Types.Mixed },
 }, { _id: false });
 
 const OrderSchema = new Schema<OrderDocument>({
@@ -54,6 +62,7 @@ const OrderSchema = new Schema<OrderDocument>({
   deliveredAt: { type: Date },
   refilledAt: { type: Date },
   deliveryCoords: { type: new Schema({ lat: Number, lon: Number }, { _id: false }) },
+  events: { type: [EventSchema], default: [] },
 }, { timestamps: true });
 
 export const Order: Model<OrderDocument> =

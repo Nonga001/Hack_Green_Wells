@@ -75,7 +75,8 @@ export default function Orders() {
 function CustomerVerifyInline({ order }: { order: any }) {
   const [open, setOpen] = React.useState(false);
   const [otp, setOtp] = React.useState<string | null>(null);
-  const [otpExpires, setOtpExpires] = React.useState<number | null>(null);
+  const [otpExpiresAt, setOtpExpiresAt] = React.useState<number | null>(null);
+  const remaining = useOtpCountdown(otpExpiresAt);
   const payload = { orderId: order._id, cylId: order.cylinder?.id };
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(JSON.stringify(payload))}`;
   return (
@@ -86,18 +87,43 @@ function CustomerVerifyInline({ order }: { order: any }) {
           <img alt="Delivery QR" src={qrUrl} className="h-10 w-10 rounded-md border border-slate-200" />
           <button onClick={async ()=>{
             try {
-              const res = await fetch(`${API_URL}/orders/${order._id}/issue-otp`, { method:'POST', headers: { ...authHeaders() } as any });
-              const data = await res.json();
-              if (res.ok) { setOtp(data.otp); setOtpExpires(data.expiresInMinutes); }
-            } catch {}
+              const data = await api(`/orders/${order._id}/issue-otp`, { method: 'POST', headers: { ...authHeaders() } });
+              // api() throws on non-ok; if we get here it's ok
+              setOtp(data.otp);
+              if (data.expiresAt) {
+                const ts = new Date(data.expiresAt).getTime();
+                setOtpExpiresAt(ts);
+              }
+            } catch (err: any) {
+              try {
+                // attempt to parse JSON error message
+                const parsed = JSON.parse(String(err.message || '{}'));
+                alert(parsed?.message || 'Failed to generate OTP');
+              } catch {
+                alert(String(err?.message || 'Failed to generate OTP'));
+              }
+            }
           }} className="text-xs px-2 py-1 rounded-lg ring-1 ring-slate-200 hover:bg-slate-50">Generate OTP</button>
           {otp && (
-            <span className="text-xs font-mono bg-slate-100 px-2 py-1 rounded">{otp}{otpExpires?` (expires in ${otpExpires}m)`:''}</span>
+            <span className="text-xs font-mono bg-slate-100 px-2 py-1 rounded">{otp}{remaining?` (${Math.floor((remaining)/60)}:${String(remaining%60).padStart(2,'0')})`:''}</span>
           )}
         </div>
       )}
     </>
   );
+}
+
+// countdown effect for OTP expiry
+function useOtpCountdown(expireAt: number | null) {
+  const [remaining, setRemaining] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    if (!expireAt) { setRemaining(null); return; }
+    const update = () => setRemaining(Math.max(0, Math.floor((expireAt - Date.now()) / 1000)));
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [expireAt]);
+  return remaining;
 }
 
 
