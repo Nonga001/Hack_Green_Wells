@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "vercel-build": "cp -R ../backend ./backend && npm run build"
   },
   "devDependencies": {
     "@types/react": "^19.2.0",
