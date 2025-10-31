@@ -17,23 +17,23 @@ async function main() {
     const supplier = await User.create({ role: 'supplier', businessName: 'Test Supplier', phoneNumber: '0700000000' } as any);
     const customer = await User.create({ role: 'customer', fullName: 'Test Customer', phoneNumber: '0711111111' } as any);
     const agent = await User.create({ role: 'agent', fullName: 'Test Agent', phoneNumber: '0722222222', availability: true } as any);
-    console.log('Created users', { supplierId: supplier._id.toString(), customerId: customer._id.toString(), agentId: agent._id.toString() });
+  console.log('Created users', { supplierId: String((supplier as any)._id), customerId: String((customer as any)._id), agentId: String((agent as any)._id) });
 
     // create cylinder
     const cylId = `TESTC-${Date.now()}`;
-    const cyl = await Cylinder.create({ supplierId: String(supplier._id), cylId, owner: 'Supplier', status: 'Available', price: 3000, refillPrice: 1200 } as any);
+  const cyl = await Cylinder.create({ supplierId: String((supplier as any)._id), cylId, owner: 'Supplier', status: 'Available', price: 3000, refillPrice: 1200 } as any);
     console.log('Created cylinder', cylId);
 
     // create refill order and mark At Supplier
     const order = await Order.create({
-      customerId: String(customer._id),
-      supplierId: String(supplier._id),
+      customerId: String((customer as any)._id),
+      supplierId: String((supplier as any)._id),
       cylinder: { id: cylId, size: '13kg', brand: 'TestBrand', price: 1200 },
       delivery: { date: new Date().toISOString() },
       type: 'refill',
       total: 1200,
       status: 'At Supplier',
-      assignedAgentId: String(agent._id),
+      assignedAgentId: String((agent as any)._id),
     } as any);
     console.log('Created order', String(order._id));
 

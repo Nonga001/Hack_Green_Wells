@@ -319,13 +319,22 @@ router.post('/:orderId/pickup-supplier', requireAuth, async (req: AuthRequest, r
   // Allow identifying the refill order by cylinder id (preferred) or by order id
   let order: any = null;
   if (cylId) {
-    order = await Order.findOne({ assignedAgentId: req.userId, 'cylinder.id': cylId });
+    // Prefer an active refill order that supplier has marked 'At Supplier'
+    order = await Order.findOne({ assignedAgentId: req.userId, 'cylinder.id': cylId, type: 'refill', status: 'At Supplier' });
+    // If not found, try to find any order matching the cylinder for better error messages
+    if (!order) {
+      const maybe = await Order.findOne({ assignedAgentId: req.userId, 'cylinder.id': cylId }).lean();
+      if (maybe) {
+        console.error('[pickup-supplier] found order by cylId but wrong type/status', { id: String(maybe._id), type: (maybe as any).type, status: (maybe as any).status });
+        return res.status(400).json({ message: `Order for cylId ${cylId} exists but is type='${(maybe as any).type}' status='${(maybe as any).status}'. Use supplier Orders management to confirm it is a refill marked At Supplier before pickup.` });
+      }
+    }
   } else {
     order = await Order.findOne({ _id: orderId, assignedAgentId: req.userId });
   }
   if (!order) {
     console.error('[pickup-supplier] Order not found', { orderIdParam: orderId, cylId, agentId: req.userId });
-    return res.status(404).json({ message: 'Order not found' });
+    return res.status(404).json({ message: 'Order not found. Make sure the supplier has marked the refill At Supplier and the order is assigned to you.' });
   }
   // Log current order and request context to aid debugging
   try {
@@ -335,22 +344,14 @@ router.post('/:orderId/pickup-supplier', requireAuth, async (req: AuthRequest, r
     console.error('[pickup-supplier] failed to log order/request', e);
   }
 
-  // tolerate older/mismatched records: treat orders with status 'At Supplier' as refills
-  const isRefill = String((order as any).type || '').toLowerCase() === 'refill';
-  if (!isRefill) {
-    if ((order as any).status === 'At Supplier') {
-      // auto-correct the DB record to be a refill so pickup can proceed
-      console.warn('[pickup-supplier] auto-correcting order.type to refill for order', String(order._id));
-      (order as any).type = 'refill';
-      await order.save();
-    } else {
-      console.error('[pickup-supplier] rejected: not a refill and not at supplier', { id: String(order._id), type: (order as any).type, status: (order as any).status });
-      return res.status(400).json({ message: 'Only refill orders can pickup from supplier' });
-    }
+  // Enforce that the order is a refill currently At Supplier (supplier Orders management should have set that)
+  if ((order as any).type !== 'refill') {
+    console.error('[pickup-supplier] rejected: not a refill', { id: String(order._id), type: (order as any).type, status: (order as any).status });
+    return res.status(400).json({ message: 'Only refill orders can pickup from supplier. Confirm in supplier Orders management.' });
   }
   if ((order as any).status !== 'At Supplier') {
     console.error('[pickup-supplier] rejected: order not At Supplier', { id: String(order._id), status: (order as any).status });
-    return res.status(400).json({ message: 'Order must be At Supplier to pickup' });
+    return res.status(400).json({ message: 'Order must be At Supplier to pickup. Confirm supplier marked it At Supplier in Orders management.' });
   }
   // require OTP verification for pickup from supplier
   if (!(otp && (order as any).otpHash && (order as any).otpExpiresAt && (order as any).otpExpiresAt > new Date())) {
