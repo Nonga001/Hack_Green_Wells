@@ -1,4 +1,11 @@
 function getApiBase(): string {
+  // 0) Build-time override from Vite: VITE_API_URL
+  try {
+    // import.meta may not exist in some runtimes; guard access
+    const viteUrl = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_API_URL) as string | undefined;
+    if (viteUrl && typeof viteUrl === 'string' && viteUrl.trim() !== '') return viteUrl;
+  } catch {}
+
   // 1) Allow a global override set at runtime (e.g., from index.html or a script)
   const globalOverride = (typeof window !== 'undefined' && (window as any).__API_URL__) as string | undefined;
   if (globalOverride && typeof globalOverride === 'string') return globalOverride;
@@ -9,13 +16,15 @@ function getApiBase(): string {
     if (stored && typeof stored === 'string') return stored;
   } catch {}
 
-  // 3) Prefer same-origin in non-localhost environments
+  // 3) If running on localhost during development, point to local backend
   if (typeof window !== 'undefined') {
     const isLocal = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
-    if (!isLocal) return window.location.origin;
+    if (isLocal) return 'http://localhost:4000';
+    // In production (non-localhost) use a relative /api path — Vercel can rewrite /api to the backend service
+    return '/api';
   }
 
-  // 4) Fallback for local development
+  // 4) Fallback for non-browser environments
   return 'http://localhost:4000';
 }
 

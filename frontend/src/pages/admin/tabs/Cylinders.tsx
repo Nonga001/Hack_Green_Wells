@@ -65,31 +65,7 @@ export default function Cylinders() {
     fetchCylinders();
   }, [fetchCylinders]);
 
-  const handleReportCylinder = async () => {
-    if (!showReportModal || !reportStatus) return;
-
-    try {
-      setActionLoading(showReportModal._id);
-
-      await api(`/admin/cylinders/${showReportModal._id}/status`, {
-        method: 'PATCH',
-        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          status: reportStatus,
-          notes: reportNotes || undefined,
-        }),
-      });
-
-      await fetchCylinders();
-      setShowReportModal(null);
-      setReportStatus('');
-      setReportNotes('');
-    } catch (err: any) {
-      alert(err.message || 'Failed to update cylinder status');
-    } finally {
-      setActionLoading(null);
-    }
-  };
+  // (report handling temporarily disabled)
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
