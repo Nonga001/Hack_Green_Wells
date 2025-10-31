@@ -1,10 +1,11 @@
 import express, { type Response } from 'express';
 import crypto from 'crypto';
 import { requireAuth, type AuthRequest } from '../middleware/auth.js';
+import Loyalty from '../models/Loyalty.js';
+import { User } from '../models/User.js';
 import { Order } from '../models/Order.js';
 import { syncCylinderFromOrder } from '../utils/syncCylinder.js';
 import { Cylinder } from '../models/Cylinder.js';
-import { User } from '../models/User.js';
 
 const router = express.Router();
 
@@ -266,9 +267,9 @@ router.post('/:orderId/issue-otp', requireAuth, async (req: AuthRequest, res: Re
     (order as any).events.push({ type: 'otp:issued', by: req.userId, at: new Date(), meta: { expiresAt } });
     await order.save();
     return res.json({ otp, expiresAt: expiresAt.toISOString() });
-  } catch (err) {
+  } catch (err: any) {
     console.error('[issue-otp] failed', err);
-    return res.status(500).json({ message: 'Failed to generate OTP', details: String(err?.message || err) });
+    return res.status(500).json({ message: 'Failed to generate OTP', details: String((err as any)?.message || err) });
   }
 });
 
@@ -421,6 +422,20 @@ router.post('/:orderId/deliver', requireAuth, async (req: AuthRequest, res: Resp
   await order.save();
   // ensure cylinder reflects delivered state
   await syncCylinderFromOrder(order);
+  // Award loyalty points: supplier can configure pointsDivisor (default 10)
+  try {
+    const cfg = await Loyalty.findOne({ supplierId: (order as any).supplierId }).lean();
+    const divisor = (cfg && (cfg as any).pointsDivisor) ? Number((cfg as any).pointsDivisor) : 10;
+    const total = Number((order as any).total || 0);
+    const points = divisor > 0 ? Math.floor(total / divisor) : 0;
+    if (points > 0) {
+      await User.findByIdAndUpdate((order as any).customerId, { $inc: { loyaltyPoints: points } });
+      (order as any).events.push({ type: 'points:awarded', by: 'system', at: new Date(), meta: { points } });
+      await order.save();
+    }
+  } catch (e:any) {
+    console.warn('[loyalty] failed to award points', e?.message || e);
+  }
   return res.json({ ok: true });
 });
 

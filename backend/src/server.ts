@@ -7,6 +7,7 @@ import userRoutes from './routes/user.js';
 import cylinderRoutes from './routes/cylinders.js';
 import orderRoutes from './routes/orders.js';
 import suppliersRoutes from './routes/suppliers.js';
+import adminRoutes from './routes/admin.js';
 
 const app = express();
 const port = process.env.PORT ? Number(process.env.PORT) : 4000;
@@ -25,6 +26,7 @@ app.use('/user', userRoutes);
 app.use('/cylinders', cylinderRoutes);
 app.use('/orders', orderRoutes);
 app.use('/suppliers', suppliersRoutes);
+app.use('/admin', adminRoutes);
 
 async function start() {
   try {

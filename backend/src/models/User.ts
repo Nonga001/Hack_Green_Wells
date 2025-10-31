@@ -27,8 +27,11 @@ export interface UserDocument extends Document {
   agentLat?: number;
   agentLon?: number;
   availability?: boolean;
+  status?: 'active' | 'suspended' | 'removed';
   createdAt: Date;
   updatedAt: Date;
+  // loyalty points balance (customers)
+  loyaltyPoints?: number;
 }
 
 const DeliveryAddressSchema = new Schema(
@@ -61,6 +64,9 @@ const UserSchema = new Schema<UserDocument>(
     agentLat: { type: Number },
     agentLon: { type: Number },
     availability: { type: Boolean, default: false },
+    status: { type: String, enum: ['active', 'suspended', 'removed'], default: 'active' },
+      // loyalty points balance for customers
+      loyaltyPoints: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

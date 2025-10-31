@@ -22,6 +22,7 @@ router.get('/me', requireAuth, async (req: AuthRequest, res: Response) => {
     availability: user.availability || false,
     agentLat: user.agentLat,
     agentLon: user.agentLon,
+    loyaltyPoints: user.loyaltyPoints || 0,
   });
 });
 
